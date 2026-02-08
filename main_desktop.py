@@ -7,7 +7,7 @@ from app import app
 
 def start_flask():
     # Flask 서버 시작 (0.0.0.0으로 설정하여 외부 접속 허용)
-    app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
+    app.run(host='0.0.0.0', port=5001, debug=False, use_reloader=False)
 
 if __name__ == '__main__':
     # 1. Flask 서버를 별도 스레드에서 시작
@@ -20,7 +20,7 @@ if __name__ == '__main__':
 
     # 3. 기본 웹 브라우저로 접속
     print("브라우저를 통해 '차유나 영양 관리'를 실행합니다...")
-    webbrowser.open('http://127.0.0.1:5000')
+    webbrowser.open('http://127.0.0.1:5001')
 
     # 4. 메인 스레드 유지
     try:

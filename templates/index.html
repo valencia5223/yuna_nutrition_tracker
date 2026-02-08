@@ -14,178 +14,206 @@
 <body>
     <div class="container">
         <header>
-            <h1>유나의 튼튼 식단 일기 🍎</h1>
-            <div id="profile-settings" class="profile-card">
-                <span class="user-info">
-                    차유나 <span id="d-day-display" class="badge-dday">D+??</span>
-                    <span id="age-display" style="font-weight: bold; margin-left: 5px; color: #555;">(??개월 ??일)</span>
-                    <input type="hidden" id="user-months" value="12">
-                </span>
-                <span id="target-calories-display"
-                    style="margin-left: 15px; font-weight: bold; color: var(--primary-color);">권장 칼로리: - kcal</span>
-                <!-- 개월수는 자동 계산되므로 저장 버튼은 권장 칼로리 갱신용으로 유지하거나 향후 확장성을 위해 둡니다. -->
-                <button id="saveProfileBtn" class="btn-small" style="display:none;">저장</button>
-            </div>
+            <header>
+                <h1>유나의 튼튼 식단 일기 🍎</h1>
+                <div id="profile-settings" class="profile-card">
+                    <span class="user-info">
+                        차유나 <span id="d-day-display" class="badge-dday">D+??</span>
+                        <span id="age-display" style="font-weight: bold; margin-left: 5px; color: #555;">(??개월
+                            ??일)</span>
+                        <input type="hidden" id="user-months" value="12">
+                    </span>
+                    <span id="target-calories-display"
+                        style="margin-left: 15px; font-weight: bold; color: var(--primary-color);">권장 칼로리: - kcal</span>
+                    <!-- 개월수는 자동 계산되므로 저장 버튼은 권장 칼로리 갱신용으로 유지하거나 향후 확장성을 위해 둡니다. -->
+                    <button id="saveProfileBtn" class="btn-small" style="display:none;">저장</button>
+                </div>
 
-            <div id="preference-settings" class="profile-card">
-                <h4 style="font-family: var(--font-heading); color: var(--primary-color); margin-bottom: 8px;">유나의 음식 취향
-                    😋</h4>
-                <div class="pref-row">
-                    <div class="pref-group">
-                        <label>좋아해요! ✨</label>
-                        <div id="likes-tags" class="tag-container"></div>
-                        <input type="text" id="like-input" placeholder="좋아하는 음식 (엔터)">
-                    </div>
-                    <div class="pref-group">
-                        <label>싫어해요! 😖</label>
-                        <div id="dislikes-tags" class="tag-container"></div>
-                        <input type="text" id="dislike-input" placeholder="싫어하는 음식 (엔터)">
+                <div id="preference-settings" class="profile-card">
+                    <h4 style="font-family: var(--font-heading); color: var(--primary-color); margin-bottom: 8px;">유나의
+                        음식 취향
+                        😋</h4>
+                    <div class="pref-row">
+                        <div class="pref-group">
+                            <label>좋아해요! ✨</label>
+                            <div id="likes-tags" class="tag-container"></div>
+                            <input type="text" id="like-input" placeholder="좋아하는 음식 (엔터)">
+                        </div>
+                        <div class="pref-group">
+                            <label>싫어해요! 😖</label>
+                            <div id="dislikes-tags" class="tag-container"></div>
+                            <input type="text" id="dislike-input" placeholder="싫어하는 음식 (엔터)">
+                        </div>
                     </div>
                 </div>
-            </div>
-        </header>
+            </header>
 
-        <main>
-            <!-- 대시보드 섹션 -->
-            <section id="dashboard" class="card">
-                <h2>오늘의 영양소</h2>
-                <div class="chart-container">
-                    <canvas id="nutritionChart"></canvas>
-                </div>
-            </section>
+            <main>
+                <!-- 대시보드 섹션 -->
+                <section id="dashboard" class="card">
+                    <h2>오늘의 영양소</h2>
+                    <div class="chart-container">
+                        <canvas id="nutritionChart"></canvas>
+                    </div>
+                </section>
 
-            <!-- 성장 관리 섹션 -->
-            <section id="growth-tracker" class="card">
-                <h2 id="toggle-growth"
-                    style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0;">
-                    유나의 성장 일기 🦒
-                    <span id="growth-toggle-icon" style="font-size: 1.2rem; transition: transform 0.3s;">▼</span>
-                </h2>
-                <div id="growth-content-wrapper" class="collapsed">
-                    <div class="growth-container" style="margin-top: 20px;">
-                        <form id="growthForm" class="compact-form">
-                            <div class="form-row">
-                                <div class="form-group flex-1">
-                                    <label>현재 키(cm)</label>
-                                    <input type="number" step="0.1" name="height" placeholder="예: 80.5" required>
-                                </div>
-                                <div class="form-group flex-1">
-                                    <label>현재 몸무게(kg)</label>
-                                    <input type="number" step="0.1" name="weight" placeholder="예: 10.2" required>
-                                </div>
-                                <div class="form-group flex-1" style="display: flex; align-items: flex-end;">
-                                    <button type="submit" class="btn-small"
-                                        style="width: 100%; height: 45px;">기록</button>
+                <!-- 성장 관리 섹션 -->
+                <section id="growth-tracker" class="card">
+                    <h2 id="toggle-growth"
+                        style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0;">
+                        유나의 성장 일기 🦒
+                        <span id="growth-toggle-icon" style="font-size: 1.2rem; transition: transform 0.3s;">▼</span>
+                    </h2>
+
+                    <div id="growth-content-wrapper" class="collapsed">
+                        <!-- Health tracker moved out of growth-container for visibility test -->
+                        <div id="health-tracker" class="card"
+                            style="margin: 15px; padding: 15px; background: #fff; border-radius: 15px; border: 1px solid #eee;">
+                            <h3
+                                style="display: flex; justify-content: space-between; align-items: center; font-size: 1.1rem; color: #008b8b; margin-bottom: 5px;">
+                                🏥 영유아 검진 & 접종 일정
+                                <button id="toggle-full-schedule" class="btn-small"
+                                    style="font-size: 0.8rem; padding: 4px 10px; background-color: var(--secondary-color);">전체
+                                    일정 보기</button>
+                            </h3>
+                            <div id="today-health-tasks" style="margin-top: 10px;">
+                                <p class="empty-msg">Loading schedule...</p>
+                            </div>
+
+                            <div id="full-health-schedule" class="collapsed"
+                                style="margin-top: 15px; border-top: 1px dashed #fab1a0; padding-top: 10px;">
+                                <div id="full-schedule-list" class="schedule-container">
                                 </div>
                             </div>
-                        </form>
-                        <div id="growth-status" class="status-box">
-                            아래 차트에서 유나의 성장 추세를 확인하세요.
                         </div>
-                        <div style="margin-bottom: 10px;">
-                            <button id="toggle-growth-history" class="btn-small" style="background-color: #74b9ff;">성장
-                                기록 현황 보러가기</button>
-                        </div>
-                        <div id="growth-history-list" class="growth-history-container"
-                            style="display: none; margin-bottom: 20px;">
-                            <!-- 성장 기록 목록이 여기에 렌더링됨 -->
-                        </div>
-                        <div class="chart-container" style="height: 300px; margin-top: 20px;">
-                            <canvas id="growthChart"></canvas>
+
+                        <div class="growth-container" style="margin-top: 0px; border-top: 1px solid #eee;">
+                            <form id="growthForm" class="compact-form">
+                                <div class="form-row">
+                                    <div class="form-group flex-1">
+                                        <label>현재 키(cm)</label>
+                                        <input type="number" step="0.1" name="height" placeholder="예: 80.5" required>
+                                    </div>
+                                    <div class="form-group flex-1">
+                                        <label>현재 몸무게(kg)</label>
+                                        <input type="number" step="0.1" name="weight" placeholder="예: 10.2" required>
+                                    </div>
+                                    <div class="form-group flex-1" style="display: flex; align-items: flex-end;">
+                                        <button type="submit" class="btn-small"
+                                            style="width: 100%; height: 45px;">기록</button>
+                                    </div>
+                                </div>
+                            </form>
+                            <div id="growth-status" class="status-box">
+                                아래 차트에서 유나의 성장 추세를 확인하세요.
+                            </div>
+
+                            <div style="margin-bottom: 10px;">
+                                <button id="toggle-growth-history" class="btn-small"
+                                    style="background-color: #74b9ff;">성장
+                                    기록 현황 보러가기</button>
+                            </div>
+                            <div id="growth-history-list" class="growth-history-container"
+                                style="display: none; margin-bottom: 20px;">
+                                <!-- 성장 기록 목록이 여기에 렌더링됨 -->
+                            </div>
+                            <div class="chart-container" style="height: 300px; margin-top: 20px;">
+                                <canvas id="growthChart"></canvas>
+                            </div>
                         </div>
                     </div>
-            </section>
+                </section>
 
-            <!-- 캘린더 섹션 -->
-            <section id="calendar-section" class="card">
-                <div class="calendar-header">
-                    <button id="prevMonth" class="btn-icon">&lt;</button>
-                    <h2 id="currentMonthYear">2026년 2월</h2>
-                    <button id="nextMonth" class="btn-icon">&gt;</button>
-                </div>
-                <div class="calendar-grid-header">
-                    <span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span>
-                </div>
-                <div id="calendar-body" class="calendar-grid">
-                    <!-- JS로 렌더링 -->
-                </div>
-            </section>
-
-            <section id="nutrition-summary">
-                <!-- 자바스크립트로 데이터 로드 -->
-            </section>
-
-            <!-- 식사 기록 섹션 -->
-            <section id="record-meal" class="card">
-                <h2>밥 먹었어요! 🍚</h2>
-                <form id="mealForm">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="mealType">언제?</label>
-                            <select id="mealType" name="mealType">
-                                <option value="아침">아침</option>
-                                <option value="점심">점심</option>
-                                <option value="저녁">저녁</option>
-                                <option value="간식">간식</option>
-                            </select>
-                        </div>
+                <!-- 캘린더 섹션 -->
+                <section id="calendar-section" class="card">
+                    <div class="calendar-header">
+                        <button id="prevMonth" class="btn-icon">&lt;</button>
+                        <h2 id="currentMonthYear">2026년 2월</h2>
+                        <button id="nextMonth" class="btn-icon">&gt;</button>
                     </div>
-                    <div class="form-row">
-                        <div class="flex-2">
-                            <label>무엇을 먹었나요? 🥣</label>
-                            <input type="text" name="menuName" placeholder="예: 쌀미음, 사과퓨레" required>
-                        </div>
-                        <div class="flex-1">
-                            <label>얼마나 먹었나요? 🍼</label>
-                            <select name="amount">
-                                <option value="조금">조금 (0.6배)</option>
-                                <option value="보통" selected>보통 (1.0배)</option>
-                                <option value="많이">많이 (1.4배)</option>
-                            </select>
-                        </div>
+                    <div class="calendar-grid-header">
+                        <span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span>
                     </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="calories">칼로리(kcal)</label>
-                            <input type="number" id="calories" name="calories" placeholder="자동 분석">
-                        </div>
-                        <div class="form-group">
-                            <label for="carbs">탄수화물(g)</label>
-                            <input type="number" id="carbs" name="carbs" placeholder="자동 분석">
-                        </div>
-                        <div class="form-group">
-                            <label for="protein">단백질(g)</label>
-                            <input type="number" id="protein" name="protein" placeholder="자동 분석">
-                        </div>
-                        <div class="form-group">
-                            <label for="fat">지방(g)</label>
-                            <input type="number" id="fat" name="fat" placeholder="자동 분석">
-                        </div>
+                    <div id="calendar-body" class="calendar-grid">
+                        <!-- JS로 렌더링 -->
                     </div>
-                    <p style="font-size: 0.8rem; color: #888; margin-top: -5px; margin-bottom: 10px;">* 영양소를 모르면
-                        비워두세요.
-                        유나가 대신 분석해줄게요! ✨</p>
-                    <button type="submit" class="btn-primary">기록하기</button>
-                </form>
-            </section>
+                </section>
 
-            <!-- 오늘 먹은 목록 -->
-            <section id="meal-list-section" class="card">
-                <h2>오늘 이렇게 먹었어요 🍴</h2>
-                <div id="meal-list">
-                    <p class="empty-msg">아직 기록이 없어요.</p>
-                </div>
-            </section>
+                <section id="nutrition-summary">
+                    <!-- 자바스크립트로 데이터 로드 -->
+                </section>
 
-            <!-- 추천 섹션 -->
-            <section id="recommendation" class="card">
-                <h2>다음 식사는 이게 어때요? 👩‍🍳</h2>
-                <div id="recommendation-content">
-                    <p>분석 중...</p>
-                </div>
-                <button id="speakBtn" class="btn-speak">🗣️ 말해줘!</button>
-            </section>
-        </main>
+                <!-- 식사 기록 섹션 -->
+                <section id="record-meal" class="card">
+                    <h2>밥 먹었어요! 🍚</h2>
+                    <form id="mealForm">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="mealType">언제?</label>
+                                <select id="mealType" name="mealType">
+                                    <option value="아침">아침</option>
+                                    <option value="점심">점심</option>
+                                    <option value="저녁">저녁</option>
+                                    <option value="간식">간식</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group flex-2">
+                                <label>🍰 무엇을 먹었나요?</label>
+                                <input type="text" name="menuName" placeholder="예: 소고기죽, 사과퓨레" required>
+                            </div>
+                            <div class="form-group flex-1">
+                                <label>🥣 얼마나?</label>
+                                <select name="amount">
+                                    <option value="보통" selected>보통</option>
+                                    <option value="조금">조금</option>
+                                    <option value="많이">많이</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="calories">칼로리(kcal)</label>
+                                <input type="number" id="calories" name="calories" placeholder="자동 분석">
+                            </div>
+                            <div class="form-group">
+                                <label for="carbs">탄수화물(g)</label>
+                                <input type="number" id="carbs" name="carbs" placeholder="자동 분석">
+                            </div>
+                            <div class="form-group">
+                                <label for="protein">단백질(g)</label>
+                                <input type="number" id="protein" name="protein" placeholder="자동 분석">
+                            </div>
+                            <div class="form-group">
+                                <label for="fat">지방(g)</label>
+                                <input type="number" id="fat" name="fat" placeholder="자동 분석">
+                            </div>
+                        </div>
+                        <p style="font-size: 0.8rem; color: #888; margin-top: -5px; margin-bottom: 10px;">* 영양소를 모르면
+                            비워두세요.
+                            유나가 대신 분석해줄게요! ✨</p>
+                        <button type="submit" class="btn-primary">기록하기</button>
+                    </form>
+                </section>
+
+                <!-- 오늘 먹은 목록 -->
+                <section id="meal-list-section" class="card">
+                    <h2>오늘 이렇게 먹었어요 🍴</h2>
+                    <div id="meal-list">
+                        <p class="empty-msg">아직 기록이 없어요.</p>
+                    </div>
+                </section>
+
+                <!-- 추천 섹션 -->
+                <section id="recommendation" class="card">
+                    <h2>다음 식사는 이게 어때요? 👩‍🍳</h2>
+                    <div id="recommendation-content">
+                        <p>분석 중...</p>
+                    </div>
+                    <button id="speakBtn" class="btn-speak">🗣️ 말해줘!</button>
+                </section>
+            </main>
     </div>
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
 </body>

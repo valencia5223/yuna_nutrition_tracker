@@ -216,6 +216,18 @@ select:focus {
     display: flex;
     gap: 10px;
     margin-bottom: 10px;
+    flex-wrap: wrap;
+    /* Î™®Î∞îÏùº ÎåÄÏùë: Í≥µÍ∞Ñ Î∂ÄÏ°± Ïãú Îã§Ïùå Ï§ÑÎ°ú */
+}
+
+.flex-2 {
+    flex: 2;
+    min-width: 150px;
+}
+
+.flex-1 {
+    flex: 1;
+    min-width: 80px;
 }
 
 #growth-content-wrapper {
@@ -589,3 +601,169 @@ select:focus {
 .flex-1 {
     flex: 1;
 }
+
+#health-tracker h3 {
+    font-family: var(--font-heading);
+    color: var(--secondary-color);
+    font-size: 1.2rem;
+    margin-bottom: 10px;
+}
+
+.schedule-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.collapsed {
+    display: none !important;
+}
+
+#full-health-schedule.collapsed {
+    display: none;
+}
+
+.schedule-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 15px;
+    background: #f8f9fa;
+    border-radius: 12px;
+    border-left: 5px solid #ddd;
+    margin-bottom: 5px;
+}
+
+.schedule-item.due {
+    border-left-color: #ff6b6b;
+    background: #fff5f5;
+}
+
+.schedule-item.today {
+    border-left-color: #fab005;
+    background: #fff9db;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(250, 176, 5, 0.4);
+    }
+
+    70% {
+        box-shadow: 0 0 0 10px rgba(250, 176, 5, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(250, 176, 5, 0);
+    }
+}
+
+.schedule-item.future {
+    opacity: 0.7;
+}
+
+.schedule-item.completed {
+    border-left-color: #1dd1a1;
+    background: #f1fcf9;
+}
+
+.schedule-item .info {
+    display: flex;
+    flex-direction: column;
+}
+
+.schedule-item .title {
+    font-weight: bold;
+    font-size: 1rem;
+}
+
+.schedule-item .period {
+    font-size: 0.8rem;
+    color: #888;
+}
+
+.status-badge {
+    padding: 3px 10px;
+    border-radius: 10px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    color: white;
+}
+
+.status-badge.due {
+    background-color: #ff6b6b;
+}
+
+.status-badge.today {
+    background-color: #fab005;
+}
+
+.status-badge.future {
+    background-color: #adb5bd;
+}
+
+.status-badge.done {
+    background-color: #1dd1a1;
+}
+ / *   ®∫º|«  \Õ»T÷  ( 7 6 8 p x   t«X’)   * / 
+ @ m e d i a   ( m a x - w i d t h :   7 6 8 p x )   { 
+         . c o n t a i n e r   { 
+                 m a r g i n :   1 0 p x   a u t o ; 
+                 p a d d i n g :   0   1 0 p x ; 
+         } 
+ 
+         h e a d e r   h 1   { 
+                 f o n t - s i z e :   1 . 8 r e m ; 
+         } 
+ 
+         . p r e f - r o w   { 
+                 f l e x - d i r e c t i o n :   c o l u m n ; 
+                 g a p :   1 0 p x ; 
+         } 
+ 
+         . f o r m - r o w   { 
+                 f l e x - d i r e c t i o n :   c o l u m n ; 
+                 g a p :   8 p x ; 
+         } 
+ 
+         . f o r m - g r o u p   { 
+                 m a r g i n - b o t t o m :   8 p x ; 
+         } 
+ 
+         . f l e x - 2 ,   . f l e x - 1   { 
+                 w i d t h :   1 0 0 % ; 
+                 f l e x :   n o n e ; 
+         } 
+ 
+         . b t n - p r i m a r y ,   . b t n - s p e a k   { 
+                 p a d d i n g :   1 2 p x ; 
+                 f o n t - s i z e :   1 . 1 r e m ; 
+         } 
+ 
+         . c a r d   { 
+                 p a d d i n g :   1 5 p x ; 
+                 b o r d e r - r a d i u s :   1 2 p x ; 
+         } 
+ 
+         . c a l e n d a r - c o n t a i n e r   { 
+                 o v e r f l o w - x :   a u t o ; 
+         } 
+ 
+         # c a l e n d a r - h e a d e r   h 3   { 
+                 f o n t - s i z e :   1 . 1 r e m ; 
+         } 
+ 
+         / *   t¨¨  §¬ œ…  ®∫º|«  \Õ»T÷  * / 
+         . s c h e d u l e - i t e m   { 
+                 f l e x - d i r e c t i o n :   c o l u m n ; 
+                 a l i g n - i t e m s :   f l e x - s t a r t ; 
+                 g a p :   5 p x ; 
+         } 
+ 
+         . s c h e d u l e - i t e m   . s t a t u s - b a d g e   { 
+                 a l i g n - s e l f :   f l e x - s t a r t ; 
+         } 
+ } 
+  
+ 

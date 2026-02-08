@@ -166,6 +166,17 @@ document.addEventListener('DOMContentLoaded', function () {
             this.style.backgroundColor = isHidden ? '#ff7675' : '#74b9ff';
         });
     }
+
+    // 건강 스케줄 전체보기 토글 핸들러
+    const toggleFullScheduleBtn = document.getElementById('toggle-full-schedule');
+    if (toggleFullScheduleBtn) {
+        toggleFullScheduleBtn.addEventListener('click', function () {
+            const fullSchedule = document.getElementById('full-health-schedule');
+            fullSchedule.classList.toggle('collapsed');
+            this.innerText = fullSchedule.classList.contains('collapsed') ? '전체 일정 보기' : '일정 닫기';
+            this.style.backgroundColor = fullSchedule.classList.contains('collapsed') ? 'var(--secondary-color)' : '#ff7675';
+        });
+    }
 });
 
 function deleteGrowthRecord(id) {
@@ -240,17 +251,17 @@ function loadDashboard() {
 
                     // 식사 유형별 클래스 매핑
                     const typeClassMap = { '아침': 'breakfast', '점심': 'lunch', '저녁': 'dinner', '간식': 'snack' };
-                    const typeClass = typeClassMap[meal.mealType] || '';
+                    const typeClass = typeClassMap[meal.meal_type] || '';
 
                     const item = document.createElement('div');
                     item.className = `meal-item ${typeClass}`;
                     item.innerHTML = `
                         <div class="info">
-                            <span class="menu">${meal.menuName} <small style="color: #888; font-weight: normal;">(${meal.amount || '보통'})</small></span>
+                            <span class="menu">${meal.menu_name} <small style="color: #888; font-weight: normal;">(${meal.amount || '보통'})</small></span>
                             <span class="specs">칼로리: ${meal.calories}kcal | 탄: ${meal.carbs}g 단: ${meal.protein}g 지: ${meal.fat}g</span>
                         </div>
                         <div style="display: flex; align-items: center; gap: 10px;">
-                            <span class="type ${typeClass}">${meal.mealType}</span>
+                            <span class="type ${typeClass}">${meal.meal_type}</span>
                             <button class="delete-btn" onclick="deleteMeal('${meal.id}')" title="삭제">×</button>
                         </div>
                     `;
@@ -348,11 +359,11 @@ function renderCalendar() {
                     // 식사 타입별로 그룹화하여 표시
                     const mealTypes = ['아침', '점심', '저녁', '간식'];
                     mealTypes.forEach(type => {
-                        const mealsOfType = dayMeals.filter(m => m.mealType.includes(type));
+                        const mealsOfType = dayMeals.filter(m => m.meal_type && m.meal_type.includes(type));
                         if (mealsOfType.length > 0) {
                             const label = document.createElement('div');
                             label.className = `meal-label ${getTypeClass(type)}`;
-                            const menuNames = mealsOfType.map(m => m.menuName).join(', ');
+                            const menuNames = mealsOfType.map(m => m.menu_name).join(', ');
                             label.innerText = `${type}: ${menuNames}`;
                             label.title = menuNames; // 툴팁으로 전체 메뉴 확인 가능
                             labelsContainer.appendChild(label);
@@ -417,6 +428,9 @@ function loadUserData() {
 
                     // 숨겨진 입력필드 업데이트 (영양 분석용)
                     document.getElementById('user-months').value = totalMonths;
+
+                    // 건강 스케줄 렌더링
+                    renderHealthSchedule(data.user.birth_date);
                 }
 
                 // 취향 데이터 렌더링
@@ -606,6 +620,127 @@ function speak(text) {
         utterance.rate = 1.0;
         utterance.pitch = 1.2;
         window.speechSynthesis.speak(utterance);
+    }
+}
+
+// 건강 스케줄 데이터 및 렌더링 로직
+const HEALTH_SCHEDULE = [
+    { type: '검진', title: '영유아 건강검진 (1차)', start: 14, end: 35, period: '생후 14~35일' },
+    { type: '접종', title: 'BCG (결핵)', start: 0, end: 30, period: '생후 4주 이내' },
+    { type: '접종', title: 'B형 간염 (1차)', start: 0, end: 1, period: '출생 시' },
+    { type: '접종', title: 'B형 간염 (2차)', start: 30, end: 30, period: '생후 1개월' },
+    { type: '접종', title: 'DTaP (1차)', start: 60, end: 60, period: '생후 2개월' },
+    { type: '접종', title: '폴리오 (1차)', start: 60, end: 60, period: '생후 2개월' },
+    { type: '접종', title: 'b형 헤모필루스 인플루엔자 (1차)', start: 60, end: 60, period: '생후 2개월' },
+    { type: '접종', title: '폐렴구균 (1차)', start: 60, end: 60, period: '생후 2개월' },
+    { type: '검진', title: '영유아 건강검진 (2차)', start: 120, end: 180, period: '생후 4~6개월' },
+    { type: '접종', title: 'DTaP (2차)', start: 120, end: 120, period: '생후 4개월' },
+    { type: '접종', title: '폴리오 (2차)', start: 120, end: 120, period: '생후 4개월' },
+    { type: '접종', title: 'b형 헤모필루스 인플루엔자 (2차)', start: 120, end: 120, period: '생후 4개월' },
+    { type: '접종', title: '폐렴구균 (2차)', start: 120, end: 120, period: '생후 4개월' },
+    { type: '검진', title: '영유아 건강검진 (3차)', start: 180, end: 270, period: '생후 6~9개월' },
+    { type: '접종', title: 'B형 간염 (3차)', start: 180, end: 180, period: '생후 6개월' },
+    { type: '접종', title: 'DTaP (3차)', start: 180, end: 180, period: '생후 6개월' },
+    { type: '접종', title: '폴리오 (3차)', start: 180, end: 180, period: '생후 6개월' },
+    { type: '접종', title: 'b형 헤모필루스 인플루엔자 (3차)', start: 180, end: 180, period: '생후 6개월' },
+    { type: '접종', title: '폐렴구균 (3차)', start: 180, end: 180, period: '생후 6개월' },
+    { type: '검진', title: '영유아 건강검진 (4차)', start: 300, end: 360, period: '생후 10~12개월' },
+    { type: '검진', title: '영유아 건강검진 (5차)', start: 360, end: 540, period: '생후 12~18개월' },
+    { type: '접종', title: 'MMR (1차)', start: 360, end: 450, period: '생후 12~15개월' },
+    { type: '접종', title: '수두 (1차)', start: 360, end: 450, period: '생후 12~15개월' },
+    { type: '접종', title: '일본뇌염 (사백신 1차)', start: 360, end: 450, period: '생후 12~15개월' },
+    { type: '검진', title: '영유아 건강검진 (6차)', start: 540, end: 720, period: '생후 18~24개월' },
+    { type: '검진', title: '영유아 건강검진 (7차)', start: 1095, end: 1460, period: '생후 36~48개월' },
+    { type: '검진', title: '영유아 건강검진 (8차)', start: 1460, end: 1825, period: '생후 48~60개월' }
+];
+
+function renderHealthSchedule(birthDateStr) {
+    console.log("건강 스케줄 렌더링 시작. 생일:", birthDateStr);
+    if (!birthDateStr) {
+        console.warn("생일 데이터가 없어 스케줄을 계산할 수 없습니다.");
+        return;
+    }
+
+    const birthDate = new Date(birthDateStr);
+    birthDate.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const diffTime = today - birthDate;
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+    const todayTasksContainer = document.getElementById('today-health-tasks');
+    const fullScheduleList = document.getElementById('full-schedule-list');
+
+    if (!todayTasksContainer || !fullScheduleList) {
+        console.error("건강 스케줄 컨테이너를 찾을 수 없습니다! HTML 구조를 확인하세요.");
+        return;
+    }
+    console.log("컨테이너 확인 완료. 루프 시작...");
+
+    fullScheduleList.innerHTML = '';
+    let todayTasksHtml = '';
+
+    HEALTH_SCHEDULE.forEach(item => {
+        let status = 'future';
+        let statusText = '기한 전';
+        let statusClass = 'future';
+
+        if (diffDays >= item.start && diffDays <= item.end) {
+            status = 'today';
+            statusText = '진행 중';
+            statusClass = 'today';
+        } else if (diffDays > item.end) {
+            status = 'completed';
+            statusText = '완료 기한 지남';
+            statusClass = 'done';
+        }
+
+        // 날짜 범위 계산
+        const startDate = new Date(birthDate);
+        startDate.setDate(birthDate.getDate() + item.start);
+        const endDate = new Date(birthDate);
+        endDate.setDate(birthDate.getDate() + item.end);
+
+        const dateRangeStr = `${startDate.getFullYear()}.${String(startDate.getMonth() + 1).padStart(2, '0')}.${String(startDate.getDate()).padStart(2, '0')} ~ ${endDate.getFullYear()}.${String(endDate.getMonth() + 1).padStart(2, '0')}.${String(endDate.getDate()).padStart(2, '0')}`;
+
+        const itemHtml = `
+            <div class="schedule-item ${status}">
+                <div class="info">
+                    <span class="title">[${item.type}] ${item.title}</span>
+                    <span class="period">${item.period} <small style="color: #00b894; margin-left:10px;">(${dateRangeStr})</small></span>
+                </div>
+                <span class="status-badge ${statusClass}">${statusText}</span>
+            </div>
+        `;
+
+        fullScheduleList.innerHTML += itemHtml;
+
+        // 현재 진행 중이거나 곧 다가올 일정 (또는 최근에 지난 일정 중 중요도가 높은 것)
+        if (status === 'today') {
+            todayTasksHtml += itemHtml;
+        }
+    });
+
+    if (todayTasksHtml) {
+        todayTasksContainer.innerHTML = todayTasksHtml;
+    } else {
+        // 진행 중인 일정이 없으면 가장 가까운 미래 일정 하나 보여주기
+        const nextTask = HEALTH_SCHEDULE.find(item => item.start > diffDays);
+        if (nextTask) {
+            todayTasksContainer.innerHTML = `
+                <p style="margin-bottom: 10px; font-size: 0.9rem; color: #888;">💡 현재 진행 중인 일정이 없습니다. 다음 일정을 준비하세요:</p>
+                <div class="schedule-item future">
+                    <div class="info">
+                        <span class="title">[${nextTask.type}] ${nextTask.title}</span>
+                        <span class="period">${nextTask.period} (D-${nextTask.start - diffDays})</span>
+                    </div>
+                    <span class="status-badge future">D-${nextTask.start - diffDays}</span>
+                </div>
+            `;
+        } else {
+            todayTasksContainer.innerHTML = '<p class="empty-msg">모든 주요 검진 및 접종 일정이 완료되었습니다! 🎉</p>';
+        }
     }
 }
 

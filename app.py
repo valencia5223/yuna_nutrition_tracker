@@ -166,7 +166,26 @@ def load_data():
         # 에러 발생 시 로컬 파일 fallback (개발 편의성)
         if os.path.exists(DATA_FILE):
             with open(DATA_FILE, 'r', encoding='utf-8') as f:
-                return json.load(f)
+                local_data = json.load(f)
+                # 데이터 정규화 (camelCase -> snake_case)
+                normalized_meals = []
+                for m in local_data.get('meals', []):
+                    normalized_meals.append({
+                        "id": m.get('id'),
+                        "date": m.get('date'),
+                        "meal_type": m.get('meal_type') or m.get('mealType'),
+                        "menu_name": m.get('menu_name') or m.get('menuName'),
+                        "amount": m.get('amount'),
+                        "calories": m.get('calories'),
+                        "carbs": m.get('carbs'),
+                        "protein": m.get('protein'),
+                        "fat": m.get('fat')
+                    })
+                return {
+                    "user": local_data.get('user', {}),
+                    "meals": normalized_meals,
+                    "growth": local_data.get('growth', [])
+                }
         return {"user": {}, "meals": [], "growth": []}
 
 def migrate_local_to_supabase():
@@ -187,11 +206,23 @@ def migrate_local_to_supabase():
         "gender": user.get('gender', '여아')
     }).execute()
     
-    # 식단 데이터 이전
+    # 식단 데이터 이전 (컬럼명 동기화)
     meals = local_data.get('meals', [])
     if meals:
-        # Supabase 대량 삽입 (중복 방지를 위해 ID 유지)
-        supabase.table('meals').upsert(meals).execute()
+        normalized_meals = []
+        for m in meals:
+            normalized_meals.append({
+                "id": m.get('id') or str(uuid.uuid4()),
+                "date": m.get('date'),
+                "meal_type": m.get('meal_type') or m.get('mealType'),
+                "menu_name": m.get('menu_name') or m.get('menuName'),
+                "amount": m.get('amount'),
+                "calories": m.get('calories'),
+                "carbs": m.get('carbs'),
+                "protein": m.get('protein'),
+                "fat": m.get('fat')
+            })
+        supabase.table('meals').upsert(normalized_meals).execute()
         
     # 성장 데이터 이전
     growth = local_data.get('growth', [])
@@ -199,7 +230,8 @@ def migrate_local_to_supabase():
         supabase.table('growth').upsert(growth).execute()
         
     print("✅ 마이그레이션 완료!")
-    return local_data
+    # 마이그레이션 후 로드된 형태(정규화된 형태)로 다시 가져오기
+    return load_data()
 
 def save_data(data):
     """Supabase를 주 저장소로 사용하므로 로컬 저장은 백업용으로만 유지합니다."""
