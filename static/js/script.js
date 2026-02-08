@@ -263,6 +263,14 @@ function loadDashboard() {
             const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
             const todayMeals = meals.filter(m => m.date.startsWith(today));
 
+            // 식사 순서 정의 (아침 -> 점심 -> 저녁 -> 간식)
+            const mealPriority = { '아침': 1, '점심': 2, '저녁': 3, '간식': 4 };
+            todayMeals.sort((a, b) => {
+                const typeA = a.meal_type || a.mealType || '간식';
+                const typeB = b.meal_type || b.mealType || '간식';
+                return (mealPriority[typeA] || 5) - (mealPriority[typeB] || 5);
+            });
+
             // 영양소 합계 계산
             let totals = { carbs: 0, protein: 0, fat: 0, calories: 0 };
             const mealList = document.getElementById('meal-list');
@@ -272,10 +280,10 @@ function loadDashboard() {
                 mealList.innerHTML = '<p class="empty-msg">아직 기록이 없어요.</p>';
             } else {
                 todayMeals.forEach(meal => {
-                    totals.carbs += meal.carbs;
-                    totals.protein += meal.protein;
-                    totals.fat += meal.fat;
-                    totals.calories += meal.calories;
+                    totals.carbs += (meal.carbs || 0);
+                    totals.protein += (meal.protein || 0);
+                    totals.fat += (meal.fat || 0);
+                    totals.calories += (meal.calories || 0);
 
                     // 식사 유형 및 메뉴 이름 안전하게 가져오기
                     const mealType = meal.meal_type || meal.mealType || '간식';
@@ -623,11 +631,13 @@ function loadGrowthData() {
                     const sortedHistory = [...history].reverse();
                     historyList.innerHTML = sortedHistory.map(h => `
                         <div class="growth-history-item">
-                            <span class="date">${h.date.split(' ')[0]}</span>
-                            <span class="info">🦒 ${h.height}cm | ⚖️ ${h.weight}kg</span>
-                            <span class="actions">
-                                <button class="delete-btn" onclick="deleteGrowthRecord('${h.id}')" title="삭제" style="background: none; border: none; color: #ff7675; cursor: pointer; font-size: 1.2rem;">×</button>
-                            </span>
+                            <div class="info">
+                                <span class="date">${h.date.split(' ')[0]}</span>
+                                <span class="stats">🦒 ${h.height}cm | ⚖️ ${h.weight}kg</span>
+                            </div>
+                            <div class="actions">
+                                <button class="delete-btn" onclick="deleteGrowthRecord('${h.id}')" title="삭제">×</button>
+                            </div>
                         </div>
                     `).join('');
                 }
