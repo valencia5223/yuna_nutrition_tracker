@@ -1,0 +1,53 @@
+{
+    "user": {
+        "name": "차유나",
+        "target_nutrition": {
+            "calories": 1000,
+            "carbs": 130,
+            "protein": 25,
+            "fat": 35
+        },
+        "months": 18,
+        "likes": [
+            "짜장밥"
+        ],
+        "dislikes": [],
+        "birth_date": "2024-07-19",
+        "gender": "여아"
+    },
+    "meals": [
+        {
+            "mealType": "아침",
+            "amount": "보통",
+            "menuName": "소고기 짜장밥 100g",
+            "calories": 260.0,
+            "carbs": 28.0,
+            "protein": 18.0,
+            "fat": 9.5,
+            "id": "af9d3640-7069-4404-adbc-262a464a1b56",
+            "date": "2026-02-08 14:06:38"
+        },
+        {
+            "mealType": "점심",
+            "amount": "보통",
+            "menuName": "소고기 짜장밥 120g",
+            "calories": 312.0,
+            "carbs": 33.6,
+            "protein": 21.6,
+            "fat": 11.4,
+            "id": "acdf9427-62b8-466c-9f24-4bb269c2d536",
+            "date": "2026-02-08 14:12:25"
+        }
+    ],
+    "growth": [
+        {
+            "id": "479c1c0a-b764-4da0-9cb6-43cf2bfc57a5",
+            "date": "2026-02-08 14:26:13",
+            "months": 18,
+            "height": 80.0,
+            "weight": 11.0,
+            "h_percentile": 40.2,
+            "w_percentile": 70.0
+        }
+    ]
+}
