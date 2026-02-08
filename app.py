@@ -5,10 +5,16 @@ from datetime import datetime, timedelta
 import uuid
 import socket
 import random
+from supabase import create_client, Client
 
 app = Flask(__name__)
 
-# 데이터 파일 경로
+# Supabase 설정 (환경 변수 우선, 없으면 사용자 제공값 사용)
+SUPABASE_URL = os.environ.get('SUPABASE_URL', 'https://aiqodlsxkckvwxeyvgne.supabase.co')
+SUPABASE_KEY = os.environ.get('SUPABASE_KEY', 'sb_publishable_ClJY0IvWS-mPhw0FaPhxSg_w3x7fbA4')
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# 로컬 백업용 데이터 파일 경로
 DATA_FILE = 'data.json'
 
 # 음식 영양 정보 데이터베이스 (1인분 평균 기준)
@@ -131,55 +137,77 @@ def calculate_nutrition(menu_name, months=12, amount="보통"):
     return result
 
 def load_data():
-    if not os.path.exists(DATA_FILE):
-        # 초기 데이터 생성
-        initial_data = {
-            "user": {
-                "name": "차유나",
-                "months": 12,
-                "likes": [],
-                "dislikes": [],
-                "target_nutrition": {
-                    "calories": 1000,
-                    "carbs": 130,
-                    "protein": 25,
-                    "fat": 30
-                }
-            },
-            "meals": []
-        }
-        with open(DATA_FILE, 'w', encoding='utf-8') as f:
-            json.dump(initial_data, f, ensure_ascii=False, indent=4)
-        return initial_data
-    
-    with open(DATA_FILE, 'r', encoding='utf-8') as f:
-        data = json.load(f)
-        # 기존 데이터에 필드가 없는 경우 안전하게 추가
-        if 'likes' not in data['user']:
-            data['user']['likes'] = []
-        if 'dislikes' not in data['user']:
-            data['user']['dislikes'] = []
-        if 'birth_date' not in data['user']:
-            data['user']['birth_date'] = "2024-07-19"
-        if 'gender' not in data['user']:
-            data['user']['gender'] = "여아"
-            
-        # 레거시 데이터 ID 자동 보정
-        needs_save = False
-        for meal in data.get('meals', []):
-            if 'id' not in meal:
-                meal['id'] = str(uuid.uuid4())
-                needs_save = True
+    """Supabase에서 데이터를 불러오고, 필요 시 로컬 데이터를 마이그레이션합니다."""
+    try:
+        # 1. 사용자 프로필 가져오기 (단일 사용자 시스템)
+        user_res = supabase.table('user_profile').select('*').eq('id', '00000000-0000-0000-0000-000000000000').execute()
         
-        # 성장 기록 필드 추가
-        if 'growth' not in data:
-            data['growth'] = []
-            needs_save = True
-            
-        if needs_save:
-            save_data(data)
-            
-        return data
+        # 만약 DB가 비어있고 로컬 파일이 있다면 마이그레이션 수행
+        if not user_res.data and os.path.exists(DATA_FILE):
+            return migrate_local_to_supabase()
+        
+        # 2. 식단 및 성장 기록 가져오기
+        meals_res = supabase.table('meals').select('*').order('date', desc=True).execute()
+        growth_res = supabase.table('growth').select('*').order('date', desc=True).execute()
+        
+        user_info = user_res.data[0] if user_res.data else {
+            "name": "차유나", "months": 12, "likes": [], "dislikes": [], 
+            "birth_date": "2024-07-19", "gender": "여아",
+            "target_nutrition": {"calories": 1000, "carbs": 130, "protein": 25, "fat": 30}
+        }
+        
+        return {
+            "user": user_info,
+            "meals": meals_res.data,
+            "growth": growth_res.data
+        }
+    except Exception as e:
+        print(f"Supabase 로드 에러: {e}")
+        # 에러 발생 시 로컬 파일 fallback (개발 편의성)
+        if os.path.exists(DATA_FILE):
+            with open(DATA_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        return {"user": {}, "meals": [], "growth": []}
+
+def migrate_local_to_supabase():
+    """로컬 json 데이터를 Supabase 클라우드로 이전합니다."""
+    print("🚀 로컬 데이터를 Supabase로 마이그레이션 시작...")
+    with open(DATA_FILE, 'r', encoding='utf-8') as f:
+        local_data = json.load(f)
+    
+    # 사용자 프로필 이전
+    user = local_data.get('user', {})
+    supabase.table('user_profile').upsert({
+        "id": "00000000-0000-0000-0000-000000000000",
+        "name": user.get('name', '차유나'),
+        "birth_date": user.get('birth_date', '2024-07-19'),
+        "likes": user.get('likes', []),
+        "dislikes": user.get('dislikes', []),
+        "target_nutrition": user.get('target_nutrition', {}),
+        "gender": user.get('gender', '여아')
+    }).execute()
+    
+    # 식단 데이터 이전
+    meals = local_data.get('meals', [])
+    if meals:
+        # Supabase 대량 삽입 (중복 방지를 위해 ID 유지)
+        supabase.table('meals').upsert(meals).execute()
+        
+    # 성장 데이터 이전
+    growth = local_data.get('growth', [])
+    if growth:
+        supabase.table('growth').upsert(growth).execute()
+        
+    print("✅ 마이그레이션 완료!")
+    return local_data
+
+def save_data(data):
+    """Supabase를 주 저장소로 사용하므로 로컬 저장은 백업용으로만 유지합니다."""
+    try:
+        with open(DATA_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+    except Exception as e:
+        print(f"로컬 백업 실패: {e}")
 
 # 한국 여아 성장 표준 데이터 (2017 소아청소년 성장도표 50백분위수)
 # {개월수: [평균키, 평균몸무게]}
@@ -193,10 +221,6 @@ GIRLS_GROWTH_STANDARD = {
     24: [86.4, 11.4], 30: [91.3, 12.7], 36: [95.4, 13.9]
 }
 
-def save_data(data):
-    with open(DATA_FILE, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
-
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -206,72 +230,58 @@ def get_data():
     data = load_data()
     return jsonify(data)
 
-@app.route('/api/user/update', methods=['POST'])
-def update_user():
-    update_info = request.json
-    data = load_data()
-    
-    # 개월수 업데이트
-    if 'months' in update_info:
-        data['user']['months'] = int(update_info['months'])
-        
-        # 개월수에 따른 목표 영양소 자동 조정 (대략적 기준)
-        m = data['user']['months']
-        if m < 6:
-            data['user']['target_nutrition'] = {"calories": 600, "carbs": 70, "protein": 15, "fat": 25}
-        elif m < 12:
-            data['user']['target_nutrition'] = {"calories": 800, "carbs": 100, "protein": 20, "fat": 30}
-        elif m < 24:
-            data['user']['target_nutrition'] = {"calories": 1000, "carbs": 130, "protein": 25, "fat": 35}
-        else:
-            data['user']['target_nutrition'] = {"calories": 1300, "carbs": 170, "protein": 35, "fat": 40}
-
-    save_data(data)
-    return jsonify({"status": "success", "message": "프로필이 업데이트되었습니다.", "user": data['user']})
-
 @app.route('/api/record', methods=['POST'])
 def record_meal():
-    new_meal = request.json
-    menu_name = new_meal.get('menuName', '')
-    amount = new_meal.get('amount', '보통')
+    meal_data = request.json
+    menu_name = meal_data.get('menuName', '')
+    amount = meal_data.get('amount', '보통')
     
     data = load_data()
     user_months = data['user'].get('months', 12)
     
-    # 고유 ID 부여 (삭제용)
-    new_meal['id'] = str(uuid.uuid4())
-    
     # 영양소가 비어있거나 0인 경우 자동 계산 시도
-    has_nutrition = all(new_meal.get(key, 0) > 0 for key in ['calories', 'carbs', 'protein', 'fat'])
+    calories = float(meal_data.get('calories', 0))
+    carbs = float(meal_data.get('carbs', 0))
+    protein = float(meal_data.get('protein', 0))
+    fat = float(meal_data.get('fat', 0))
     
     status_msg = "식단이 기록되었습니다."
-    if not has_nutrition:
-        # 개월수와 섭취량을 반영한 정밀 계산
+    if calories == 0 and carbs == 0 and protein == 0 and fat == 0:
         auto_nutrition = calculate_nutrition(menu_name, user_months, amount)
-        new_meal.update(auto_nutrition)
+        calories = auto_nutrition['calories']
+        carbs = auto_nutrition['carbs']
+        protein = auto_nutrition['protein']
+        fat = auto_nutrition['fat']
         status_msg = f"'{menu_name}'({amount})을(를) 분석하여 기록했습니다."
 
-    # 날짜 정보 추가
-    new_meal['date'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    new_meal = {
+        "id": str(uuid.uuid4()),
+        "date": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        "meal_type": meal_data.get('mealType'),
+        "menu_name": menu_name,
+        "amount": amount,
+        "calories": calories,
+        "carbs": carbs,
+        "protein": protein,
+        "fat": fat
+    }
     
-    data['meals'].append(new_meal)
-    save_data(data)
-    
-    return jsonify({"status": "success", "message": status_msg, "data": new_meal})
+    try:
+        supabase.table('meals').insert(new_meal).execute()
+        return jsonify({"status": "success", "message": status_msg, "record": new_meal})
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"기록 실패: {e}"}), 500
 
 @app.route('/api/delete', methods=['POST'])
 def delete_meal():
     meal_id = request.json.get('id')
-    data = load_data()
-    
-    original_count = len(data['meals'])
-    data['meals'] = [m for m in data['meals'] if m.get('id') != meal_id]
-    
-    if len(data['meals']) < original_count:
-        save_data(data)
-        return jsonify({"status": "success", "message": "기록이 삭제되었습니다."})
-    else:
+    try:
+        res = supabase.table('meals').delete().eq('id', meal_id).execute()
+        if res.data:
+            return jsonify({"status": "success", "message": "삭제되었습니다."})
         return jsonify({"status": "error", "message": "삭제할 기록을 찾지 못했습니다."}), 404
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"삭제 실패: {e}"}), 500
 
 @app.route('/api/growth', methods=['POST'])
 def record_growth():
@@ -280,13 +290,10 @@ def record_growth():
     weight = float(growth_data.get('weight', 0))
     months = int(growth_data.get('months', 12))
     
-    data = load_data()
-    
     # 한국 여아 평균 데이터와 비교 (Z-Score 기반 백분위 추정)
     def calculate_percentile(value, avg, cv):
         if avg <= 0: return 50
         z = (value - avg) / (avg * cv)
-        # Z-score to Percentile approximation (simplified)
         import math
         percentile = 0.5 * (1.0 + math.erf(z / math.sqrt(2.0))) * 100
         return round(max(1, min(99, percentile)), 1)
@@ -295,7 +302,6 @@ def record_growth():
     closest_m = min(standard_months, key=lambda x: abs(x - months))
     avg_h, avg_w = GIRLS_GROWTH_STANDARD[closest_m]
     
-    # 키 백분위 (CV 약 3.5%) / 몸무게 백분위 (CV 약 11%)
     h_percentile = calculate_percentile(height, avg_h, 0.035)
     w_percentile = calculate_percentile(weight, avg_w, 0.11)
     
@@ -311,51 +317,65 @@ def record_growth():
         "w_percentile": w_percentile
     }
     
-    data['growth'].append(new_record)
-    save_data(data)
-    
-    return jsonify({"status": "success", "message": status_msg, "record": new_record})
-
-@app.route('/api/growth/history', methods=['GET'])
-def get_growth_history():
-    data = load_data()
-    # 날짜순 정렬
-    history = sorted(data.get('growth', []), key=lambda x: x['date'])
-    return jsonify({"status": "success", "history": history})
+    try:
+        supabase.table('growth').insert(new_record).execute()
+        return jsonify({"status": "success", "message": status_msg, "record": new_record})
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"성장 기록 실패: {e}"}), 500
 
 @app.route('/api/growth/delete', methods=['POST'])
 def delete_growth():
     record_id = request.json.get('id')
-    data = load_data()
-    
-    original_count = len(data.get('growth', []))
-    data['growth'] = [g for g in data.get('growth', []) if g.get('id') != record_id]
-    
-    if len(data['growth']) < original_count:
-        save_data(data)
-        return jsonify({"status": "success", "message": "성장 기록이 삭제되었습니다."})
-    else:
+    try:
+        res = supabase.table('growth').delete().eq('id', record_id).execute()
+        if res.data:
+            return jsonify({"status": "success", "message": "성장 기록이 삭제되었습니다."})
         return jsonify({"status": "error", "message": "삭제할 기록을 찾지 못했습니다."}), 404
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"성장 삭제 실패: {e}"}), 500
 
 @app.route('/api/user/preferences', methods=['POST'])
 def update_preferences():
-    preferences = request.json
-    data = load_data()
-    data['user']['likes'] = preferences.get('likes', [])
-    data['user']['dislikes'] = preferences.get('dislikes', [])
-    save_data(data)
-    return jsonify({"status": "success", "message": "음식 취향이 저장되었습니다."})
+    pref_data = request.json
+    try:
+        supabase.table('user_profile').update({
+            "likes": pref_data.get('likes', []),
+            "dislikes": pref_data.get('dislikes', [])
+        }).eq('id', '00000000-0000-0000-0000-000000000000').execute()
+        return jsonify({"status": "success", "message": "음식 취향이 저장되었습니다."})
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"저장 실패: {e}"}), 500
+
+@app.route('/api/user/update', methods=['POST'])
+def update_user():
+    user_data = request.json
+    try:
+        supabase.table('user_profile').update({
+            "months": int(user_data.get('months', 12))
+        }).eq('id', '00000000-0000-0000-0000-000000000000').execute()
+        return jsonify({"status": "success", "message": "사용자 정보가 수정되었습니다."})
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"수정 실패: {e}"}), 500
+
+@app.route('/api/growth/history', methods=['GET'])
+def get_growth_history():
+    try:
+        res = supabase.table('growth').select('*').order('date', desc=False).execute()
+        return jsonify({"status": "success", "history": res.data})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/recommend', methods=['GET'])
 def recommend_meal():
     data = load_data()
-    months = data['user'].get('months', 12)
+    user = data.get('user', {})
+    months = user.get('months', 12)
     meals = data.get('meals', [])
-    target = data['user']['target_nutrition']
-    likes = data['user'].get('likes', [])
-    dislikes = data['user'].get('dislikes', [])
+    target = user.get('target_nutrition', {"calories": 1000})
+    likes = user.get('likes', [])
+    dislikes = user.get('dislikes', [])
     
-    # 5단계 세분화 식단 데이터베이스 (대폭 확장)
+    # 5단계 세분화 식단 데이터베이스 (본문 동일 생략 - 실제 수정 시 유지)
     STAGE_DETAILS = {
         "early": {
             "menus": [
@@ -411,25 +431,18 @@ def recommend_meal():
     elif months < 16: stage = "completion"
     else: stage = "toddler"
     
-    # 싫어하는 음식 및 좋아하는 음식 통합 처리 함수
     def process_preferences(menu_name):
         clean_menu = str(menu_name).replace(" ", "")
-        
-        # 1. 싫어하는 음식 체크 (최우선)
         for d in dislikes:
             clean_bad = str(d).replace(" ", "").strip()
             if clean_bad and clean_bad in clean_menu:
                 return f"⚠️ {menu_name} (기호 외)"
-        
-        # 2. 좋아하는 음식 체크
         for l in likes:
             clean_good = str(l).replace(" ", "").strip()
             if clean_good and clean_good in clean_menu:
                 return f"🌟 {menu_name} (선호!)"
-        
         return menu_name
 
-    # 싫어하는 음식이 "하나라도" 포함된 세트인지 확인하는 함수
     def has_any_dislike(menu_set):
         for val in menu_set.values():
             clean_val = str(val).replace(" ", "")
@@ -439,31 +452,26 @@ def recommend_meal():
                     return True
         return False
 
-    # 필터링 적용
     valid_menus = [m for m in STAGE_DETAILS[stage]["menus"] if not has_any_dislike(m)]
-    
     if not valid_menus:
-        # 모든 메뉴가 기호에 맞지 않을 때의 폴백: 가장 첫 번째 메뉴를 선택하되 ⚠️ 표시 유지
         selected_set = STAGE_DETAILS[stage]["menus"][0].copy()
-        tip = f"⚠️ 현재 등록하신 '싫어하는 음식'을 모두 제외한 식단을 찾기 어렵습니다. 식재료를 조금 조절해 보시는 건 어떨까요? (기본 추천 식단을 먼저 보여드려요)"
+        tip = f"⚠️ 싫어하는 음식을 제외한 식단을 찾기 어렵습니다. 기본 추천 식단을 보여드려요."
     else:
         selected_set = random.choice(valid_menus).copy()
         tip = STAGE_DETAILS[stage]["tip"]
 
-    # 최종 명칭 변환 (🌟 또는 ⚠️ 표시 적용)
     for key in ['breakfast', 'lunch', 'dinner', 'snack']:
         selected_set[key] = process_preferences(selected_set[key])
 
-    # 최근 데이터 분석
-    df = pd.DataFrame(meals)
+    # 최근 데이터 분석 (Pandas 없이 구현)
     tendency_msg = "유나의 성장 단계에 딱 맞는 하루 식단을 준비했어요."
-    if not df.empty:
-        df['date'] = pd.to_datetime(df['date'])
+    if meals:
         last_week = datetime.now() - timedelta(days=7)
-        recent_df = df[df['date'] > last_week]
-        if not recent_df.empty:
-            avg_cal = recent_df['calories'].sum() / 7
-            cal_rate = (avg_cal / target['calories']) * 100
+        recent_meals = [m for m in meals if datetime.strptime(m['date'], '%Y-%m-%d %H:%M:%S') > last_week]
+        if recent_meals:
+            total_cal = sum(float(m.get('calories', 0)) for m in recent_meals)
+            avg_cal = total_cal / 7
+            cal_rate = (avg_cal / target.get('calories', 1000)) * 100
             tendency_msg = f"최근 1주일간 유나는 목표 칼로리의 {cal_rate:.1f}%를 섭취 중이에요."
 
     return jsonify({
