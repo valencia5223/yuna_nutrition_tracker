@@ -1,5 +1,6 @@
 let nutritionChart;
-let growthChart;
+let heightChart;
+let weightChart;
 let currentViewDate = new Date();
 
 document.addEventListener('DOMContentLoaded', function () {
@@ -56,6 +57,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 });
         });
     }
+
+    // 성장일기 토글 아이콘 초기 상태 설정 (Open)
+    const growthIcon = document.getElementById('growth-toggle-icon');
+    if (growthIcon) growthIcon.style.transform = 'rotate(180deg)';
 
     // 식단 기록 폼 제출 핸들러
     const mealForm = document.getElementById('mealForm');
@@ -119,8 +124,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const months = document.getElementById('user-months').value;
             const growthData = {
                 height: formData.get('height'),
-                weight: formData.get('weight'),
-                months: months
+                weight: formData.get('weight')
             };
 
             fetch('/api/growth', {
@@ -177,6 +181,27 @@ document.addEventListener('DOMContentLoaded', function () {
             this.style.backgroundColor = fullSchedule.classList.contains('collapsed') ? 'var(--secondary-color)' : '#ff7675';
         });
     }
+
+    // 네비게이션 탭 전환 핸들러
+    const navBtns = document.querySelectorAll('.nav-btn');
+    navBtns.forEach(btn => {
+        btn.addEventListener('click', function () {
+            const tab = this.getAttribute('data-tab');
+
+            // 버튼 활성화 상태 변경
+            navBtns.forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+
+            // 콘텐츠 표시 전환
+            if (tab === 'meal') {
+                document.querySelectorAll('.tab-meal').forEach(el => el.classList.remove('hidden'));
+                document.querySelectorAll('.tab-growth').forEach(el => el.classList.add('hidden'));
+            } else {
+                document.querySelectorAll('.tab-meal').forEach(el => el.classList.add('hidden'));
+                document.querySelectorAll('.tab-growth').forEach(el => el.classList.remove('hidden'));
+            }
+        });
+    });
 });
 
 function deleteGrowthRecord(id) {
@@ -521,53 +546,62 @@ document.addEventListener('keydown', function (e) {
 
 // 성장 차트 초기화
 function initGrowthChart() {
-    const ctxElement = document.getElementById('growthChart');
-    if (!ctxElement) return;
-    const ctx = ctxElement.getContext('2d');
-    growthChart = new Chart(ctx, {
+    const hCtxElement = document.getElementById('heightChart');
+    const wCtxElement = document.getElementById('weightChart');
+    if (!hCtxElement || !wCtxElement) return;
+
+    const hCtx = hCtxElement.getContext('2d');
+    const wCtx = wCtxElement.getContext('2d');
+
+    heightChart = new Chart(hCtx, {
         type: 'line',
         data: {
             labels: [],
-            datasets: [
-                {
-                    label: '키 (cm)',
-                    data: [],
-                    borderColor: '#9c88ff',
-                    backgroundColor: '#9c88ff44',
-                    yAxisID: 'yH',
-                    tension: 0.3,
-                    fill: true
-                },
-                {
-                    label: '몸무게 (kg)',
-                    data: [],
-                    borderColor: '#ff9f43',
-                    backgroundColor: '#ff9f4344',
-                    yAxisID: 'yW',
-                    tension: 0.3,
-                    fill: true
-                }
-            ]
+            datasets: [{
+                label: '키 (cm)',
+                data: [],
+                borderColor: '#9c88ff',
+                backgroundColor: '#9c88ff44',
+                tension: 0.3,
+                fill: true
+            }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
             scales: {
-                yH: {
-                    type: 'linear',
-                    position: 'left',
+                y: {
+                    beginAtZero: false,
                     title: { display: true, text: '키 (cm)' }
-                },
-                yW: {
-                    type: 'linear',
-                    position: 'right',
-                    title: { display: true, text: '몸무게 (kg)', font: { size: 12 } },
-                    grid: { drawOnChartArea: false }
                 }
             },
-            plugins: {
-                legend: { position: 'top' }
-            }
+            plugins: { legend: { position: 'top' } }
+        }
+    });
+
+    weightChart = new Chart(wCtx, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [{
+                label: '몸무게 (kg)',
+                data: [],
+                borderColor: '#ff9f43',
+                backgroundColor: '#ff9f4344',
+                tension: 0.3,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: false,
+                    title: { display: true, text: '몸무게 (kg)' }
+                }
+            },
+            plugins: { legend: { position: 'top' } }
         }
     });
 }
@@ -605,18 +639,23 @@ function loadGrowthData() {
             const heights = history.map(h => h.height);
             const weights = history.map(h => h.weight);
 
-            if (growthChart) {
-                growthChart.data.labels = labels;
-                growthChart.data.datasets[0].data = heights;
-                growthChart.data.datasets[1].data = weights;
-                growthChart.update();
+            if (heightChart && weightChart) {
+                heightChart.data.labels = labels;
+                heightChart.data.datasets[0].data = heights;
+                heightChart.update();
+
+                weightChart.data.labels = labels;
+                weightChart.data.datasets[0].data = weights;
+                weightChart.update();
             }
 
             // 마지막 기록으로 상태 메시지 업데이트
             const last = history[history.length - 1];
             const statusEl = document.getElementById('growth-status');
             if (statusEl) {
-                statusEl.innerText = `마지막 기록(${last.months}개월): 키 백분위 ${last.h_percentile} (상위 ${Math.round((100 - last.h_percentile) * 10) / 10}%) | 몸무게 백분위 ${last.w_percentile} (상위 ${Math.round((100 - last.w_percentile) * 10) / 10}%)`;
+                const hTop = Math.round((100 - last.h_percentile) * 10) / 10;
+                const wTop = Math.round((100 - last.w_percentile) * 10) / 10;
+                statusEl.innerText = `마지막 기록(${last.months}개월): 키 ${last.height}cm (상위 ${hTop}%) | 몸무게 ${last.weight}kg (상위 ${wTop}%)`;
             }
         });
 }
@@ -637,34 +676,54 @@ function speak(text) {
 }
 
 // 건강 스케줄 데이터 및 렌더링 로직
+// 건강 스케줄 데이터 및 렌더링 로직
 const HEALTH_SCHEDULE = [
+    // --- 영유아 건강검진 ---
     { type: '검진', title: '영유아 건강검진 (1차)', start: 14, end: 35, period: '생후 14~35일' },
+    { type: '검진', title: '영유아 건강검진 (2차)', start: 120, end: 180, period: '생후 4~6개월' },
+    { type: '검진', title: '영유아 건강검진 (3차)', start: 180, end: 270, period: '생후 6~9개월' },
+    { type: '검진', title: '영유아 건강검진 (4차)', start: 300, end: 360, period: '생후 10~12개월' },
+    { type: '검진', title: '영유아 건강검진 (5차)', start: 360, end: 540, period: '생후 12~18개월' },
+    { type: '검진', title: '영유아 건강검진 (6차)', start: 540, end: 720, period: '생후 18~24개월' },
+    { type: '검진', title: '영유아 건강검진 (7차)', start: 1095, end: 1460, period: '생후 36~48개월' },
+    { type: '검진', title: '영유아 건강검진 (8차)', start: 1460, end: 1825, period: '생후 48~60개월' },
+    { type: '검진', title: '영유아 구강검진 (1차)', start: 540, end: 870, period: '생후 18~29개월' },
+    { type: '검진', title: '영유아 구강검진 (2차)', start: 1260, end: 1620, period: '생후 42~53개월' },
+    { type: '검진', title: '영유아 구강검진 (3차)', start: 1620, end: 1980, period: '생후 54~65개월' },
+
+    // --- 국가 예방접종 (필수) ---
     { type: '접종', title: 'BCG (결핵)', start: 0, end: 30, period: '생후 4주 이내' },
     { type: '접종', title: 'B형 간염 (1차)', start: 0, end: 1, period: '출생 시' },
     { type: '접종', title: 'B형 간염 (2차)', start: 30, end: 30, period: '생후 1개월' },
-    { type: '접종', title: 'DTaP (1차)', start: 60, end: 60, period: '생후 2개월' },
-    { type: '접종', title: '폴리오 (1차)', start: 60, end: 60, period: '생후 2개월' },
-    { type: '접종', title: 'b형 헤모필루스 인플루엔자 (1차)', start: 60, end: 60, period: '생후 2개월' },
-    { type: '접종', title: '폐렴구균 (1차)', start: 60, end: 60, period: '생후 2개월' },
-    { type: '검진', title: '영유아 건강검진 (2차)', start: 120, end: 180, period: '생후 4~6개월' },
-    { type: '접종', title: 'DTaP (2차)', start: 120, end: 120, period: '생후 4개월' },
-    { type: '접종', title: '폴리오 (2차)', start: 120, end: 120, period: '생후 4개월' },
-    { type: '접종', title: 'b형 헤모필루스 인플루엔자 (2차)', start: 120, end: 120, period: '생후 4개월' },
-    { type: '접종', title: '폐렴구균 (2차)', start: 120, end: 120, period: '생후 4개월' },
-    { type: '검진', title: '영유아 건강검진 (3차)', start: 180, end: 270, period: '생후 6~9개월' },
     { type: '접종', title: 'B형 간염 (3차)', start: 180, end: 180, period: '생후 6개월' },
+    { type: '접종', title: 'DTaP (1차)', start: 60, end: 60, period: '생후 2개월' },
+    { type: '접종', title: 'DTaP (2차)', start: 120, end: 120, period: '생후 4개월' },
     { type: '접종', title: 'DTaP (3차)', start: 180, end: 180, period: '생후 6개월' },
+    { type: '접종', title: 'DTaP (4차)', start: 450, end: 540, period: '생후 15~18개월' },
+    { type: '접종', title: 'DTaP (5차)', start: 1460, end: 2190, period: '만 4~6세' },
+    { type: '접종', title: '폴리오 (1차)', start: 60, end: 60, period: '생후 2개월' },
+    { type: '접종', title: '폴리오 (2차)', start: 120, end: 120, period: '생후 4개월' },
     { type: '접종', title: '폴리오 (3차)', start: 180, end: 180, period: '생후 6개월' },
+    { type: '접종', title: '폴리오 (4차)', start: 1460, end: 2190, period: '만 4~6세' },
+    { type: '접종', title: 'b형 헤모필루스 인플루엔자 (1차)', start: 60, end: 60, period: '생후 2개월' },
+    { type: '접종', title: 'b형 헤모필루스 인플루엔자 (2차)', start: 120, end: 120, period: '생후 4개월' },
     { type: '접종', title: 'b형 헤모필루스 인플루엔자 (3차)', start: 180, end: 180, period: '생후 6개월' },
+    { type: '접종', title: 'b형 헤모필루스 인플루엔자 (4차)', start: 360, end: 450, period: '생후 12~15개월' },
+    { type: '접종', title: '폐렴구균 (1차)', start: 60, end: 60, period: '생후 2개월' },
+    { type: '접종', title: '폐렴구균 (2차)', start: 120, end: 120, period: '생후 4개월' },
     { type: '접종', title: '폐렴구균 (3차)', start: 180, end: 180, period: '생후 6개월' },
-    { type: '검진', title: '영유아 건강검진 (4차)', start: 300, end: 360, period: '생후 10~12개월' },
-    { type: '검진', title: '영유아 건강검진 (5차)', start: 360, end: 540, period: '생후 12~18개월' },
+    { type: '접종', title: '폐렴구균 (4차)', start: 360, end: 450, period: '생후 12~15개월' },
+    { type: '접종', title: '로타바이러스 (1차)', start: 60, end: 60, period: '생후 2개월' },
+    { type: '접종', title: '로타바이러스 (2차)', start: 120, end: 120, period: '생후 4개월' },
+    { type: '접종', title: '로타바이러스 (3차 - 선택)', start: 180, end: 180, period: '생후 6개월' },
     { type: '접종', title: 'MMR (1차)', start: 360, end: 450, period: '생후 12~15개월' },
+    { type: '접종', title: 'MMR (2차)', start: 1460, end: 2190, period: '만 4~6세' },
     { type: '접종', title: '수두 (1차)', start: 360, end: 450, period: '생후 12~15개월' },
     { type: '접종', title: '일본뇌염 (사백신 1차)', start: 360, end: 450, period: '생후 12~15개월' },
-    { type: '검진', title: '영유아 건강검진 (6차)', start: 540, end: 720, period: '생후 18~24개월' },
-    { type: '검진', title: '영유아 건강검진 (7차)', start: 1095, end: 1460, period: '생후 36~48개월' },
-    { type: '검진', title: '영유아 건강검진 (8차)', start: 1460, end: 1825, period: '생후 48~60개월' }
+    { type: '접종', title: '일본뇌염 (사백신 2차)', start: 367, end: 457, period: '1차 접종 1주 후' },
+    { type: '접종', title: '일본뇌염 (사백신 3차)', start: 730, end: 1095, period: '2차 접종 1년 후' },
+    { type: '접종', title: 'A형 간염 (1차)', start: 360, end: 720, period: '생후 12~23개월' },
+    { type: '접종', title: 'A형 간염 (2차)', start: 540, end: 1095, period: '1차 접종 6~12개월 후' }
 ];
 
 function renderHealthSchedule(birthDateStr) {
@@ -709,12 +768,10 @@ function renderHealthSchedule(birthDateStr) {
             statusClass = 'done';
         }
 
-        // 날짜 범위 계산
         const startDate = new Date(birthDate);
         startDate.setDate(birthDate.getDate() + item.start);
         const endDate = new Date(birthDate);
         endDate.setDate(birthDate.getDate() + item.end);
-
         const dateRangeStr = `${startDate.getFullYear()}.${String(startDate.getMonth() + 1).padStart(2, '0')}.${String(startDate.getDate()).padStart(2, '0')} ~ ${endDate.getFullYear()}.${String(endDate.getMonth() + 1).padStart(2, '0')}.${String(endDate.getDate()).padStart(2, '0')}`;
 
         const itemHtml = `
@@ -727,9 +784,10 @@ function renderHealthSchedule(birthDateStr) {
             </div>
         `;
 
+        // 전체 리스트 (완료/미래/오늘 모두 포함)
         fullScheduleList.innerHTML += itemHtml;
 
-        // 현재 진행 중이거나 곧 다가올 일정 (또는 최근에 지난 일정 중 중요도가 높은 것)
+        // 상단 노출은 오직 "진행 중(today)" 뿐
         if (status === 'today') {
             todayTasksHtml += itemHtml;
         }
@@ -738,22 +796,11 @@ function renderHealthSchedule(birthDateStr) {
     if (todayTasksHtml) {
         todayTasksContainer.innerHTML = todayTasksHtml;
     } else {
-        // 진행 중인 일정이 없으면 가장 가까운 미래 일정 하나 보여주기
-        const nextTask = HEALTH_SCHEDULE.find(item => item.start > diffDays);
-        if (nextTask) {
-            todayTasksContainer.innerHTML = `
-                <p style="margin-bottom: 10px; font-size: 0.9rem; color: #888;">💡 현재 진행 중인 일정이 없습니다. 다음 일정을 준비하세요:</p>
-                <div class="schedule-item future">
-                    <div class="info">
-                        <span class="title">[${nextTask.type}] ${nextTask.title}</span>
-                        <span class="period">${nextTask.period} (D-${nextTask.start - diffDays})</span>
-                    </div>
-                    <span class="status-badge future">D-${nextTask.start - diffDays}</span>
-                </div>
-            `;
-        } else {
-            todayTasksContainer.innerHTML = '<p class="empty-msg">모든 주요 검진 및 접종 일정이 완료되었습니다! 🎉</p>';
-        }
+        todayTasksContainer.innerHTML = `
+            <div style="text-align: center; padding: 10px; color: #888;">
+                <p style="font-size: 0.95rem;">💡 현재 진행 중인 일정이 없습니다.</p>
+                <p style="font-size: 0.8rem;">전체 일정을 통해 다가올 접종이나 지난 검진을 확인하세요.</p>
+            </div>
+        `;
     }
 }
-

@@ -136,6 +136,23 @@ def calculate_nutrition(menu_name, months=12, amount="보통"):
         
     return result
 
+def calculate_months(birth_date_str):
+    """생년월일을 기준으로 현재 개월수를 계산합니다."""
+    if not birth_date_str:
+        return 12
+    try:
+        # birth_date_str이 'YYYY-MM-DD' 형식이라고 가정
+        birth_date = datetime.strptime(birth_date_str.split('T')[0], '%Y-%m-%d')
+        today = datetime.now()
+        months = (today.year - birth_date.year) * 12 + (today.month - birth_date.month)
+        # 일(day)이 생일보다 전이면 1개월 뺌
+        if today.day < birth_date.day:
+            months -= 1
+        return max(0, months)
+    except Exception as e:
+        print(f"개월수 계산 에러: {e}")
+        return 12
+
 def load_data():
     """Supabase에서 데이터를 불러오고, 필요 시 로컬 데이터를 마이그레이션합니다."""
     try:
@@ -155,6 +172,9 @@ def load_data():
             "birth_date": "2024-07-19", "gender": "여아",
             "target_nutrition": {"calories": 1000, "carbs": 130, "protein": 25, "fat": 30}
         }
+        
+        # 개월수 자동 계산 적용
+        user_info['months'] = calculate_months(user_info.get('birth_date'))
         
         # 데이터 정규화(camelCase -> snake_case) 보장
         normalized_meals = []
@@ -182,6 +202,10 @@ def load_data():
         if os.path.exists(DATA_FILE):
             with open(DATA_FILE, 'r', encoding='utf-8') as f:
                 local_data = json.load(f)
+                
+                user_info = local_data.get('user', {})
+                user_info['months'] = calculate_months(user_info.get('birth_date'))
+                
                 # 데이터 정규화 (camelCase -> snake_case)
                 normalized_meals = []
                 for m in local_data.get('meals', []):
@@ -197,7 +221,7 @@ def load_data():
                         "fat": float(m.get('fat') or 0)
                     })
                 return {
-                    "user": local_data.get('user', {}),
+                    "user": user_info,
                     "meals": normalized_meals,
                     "growth": local_data.get('growth', [])
                 }
@@ -284,6 +308,7 @@ def record_meal():
     amount = meal_data.get('amount', '보통')
     
     data = load_data()
+    # 개월수는 load_data() 내부에서 calculate_months()를 통해 자동 계산됨
     user_months = data['user'].get('months', 12)
     
     # 영양소가 비어있거나 0인 경우 자동 계산 시도
@@ -335,7 +360,9 @@ def record_growth():
     growth_data = request.json
     height = float(growth_data.get('height', 0))
     weight = float(growth_data.get('weight', 0))
-    months = int(growth_data.get('months', 12))
+    
+    data = load_data()
+    months = data['user'].get('months', 12)
     
     # 한국 여아 평균 데이터와 비교 (Z-Score 기반 백분위 추정)
     def calculate_percentile(value, avg, cv):
@@ -395,14 +422,9 @@ def update_preferences():
 
 @app.route('/api/user/update', methods=['POST'])
 def update_user():
-    user_data = request.json
-    try:
-        supabase.table('user_profile').update({
-            "months": int(user_data.get('months', 12))
-        }).eq('id', '00000000-0000-0000-0000-000000000000').execute()
-        return jsonify({"status": "success", "message": "사용자 정보가 수정되었습니다."})
-    except Exception as e:
-        return jsonify({"status": "error", "message": f"수정 실패: {e}"}), 500
+    # 개월수는 자동 계산되므로 이 API는 사실상 birth_date 등을 수정할 때 사용하도록 확장 가능
+    # 현재는 호환성을 위해 유지하거나 메시지만 반환
+    return jsonify({"status": "success", "message": "사용자 정보는 자동 계산 방식으로 관리됩니다."})
 
 @app.route('/api/growth/history', methods=['GET'])
 def get_growth_history():
