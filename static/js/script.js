@@ -227,7 +227,10 @@ function loadDashboard() {
         .then(data => {
             const meals = data.meals || [];
             if (data.user && data.user.target_nutrition) {
-                document.getElementById('target-calories-display').innerText = `권장 칼로리: ${data.user.target_nutrition.calories} kcal`;
+                const targetDisplay = document.getElementById('target-calories-display');
+                if (targetDisplay) {
+                    targetDisplay.innerText = `권장 칼로리: ${data.user.target_nutrition.calories} kcal`;
+                }
             }
 
             // 로컬 날짜 기준으로 오늘 날짜 필터링 (ISO는 UTC 기준이라 시차 문제 발생 가능)
@@ -398,7 +401,10 @@ function loadUserData() {
             if (data.user) {
                 document.getElementById('user-months').value = data.user.months;
                 if (data.user.target_nutrition) {
-                    document.getElementById('target-calories-display').innerText = `권장 칼로리: ${data.user.target_nutrition.calories} kcal`;
+                    const targetDisplay = document.getElementById('target-calories-display');
+                    if (targetDisplay) {
+                        targetDisplay.innerText = `권장 칼로리: ${data.user.target_nutrition.calories} kcal`;
+                    }
                 }
 
                 // 디데이 및 상세 연령(개월/일) 계산 및 표시
