@@ -5,6 +5,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>차유나 영양 관리</title>
+
+    <!-- Open Graph / KakaoTalk Metadata -->
+    <meta property="og:title" content="유나의 튼튼 식단 일기 🍎">
+    <meta property="og:description" content="유나의 성장을 기록하고 영양을 관리하는 식단 일기입니다.">
+    <meta property="og:image" content="{{ url_for('static', filename='og-image.jpg', _external=True) }}">
+    <meta property="og:url" content="https://yuna-nutrition-tracker.onrender.com">
+    <meta property="og:type" content="website">
+
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;700&display=swap"
         rel="stylesheet">
