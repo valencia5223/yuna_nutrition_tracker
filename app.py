@@ -466,13 +466,26 @@ def recommend_meal():
     # 최근 데이터 분석 (Pandas 없이 구현)
     tendency_msg = "유나의 성장 단계에 딱 맞는 하루 식단을 준비했어요."
     if meals:
-        last_week = datetime.now() - timedelta(days=7)
-        recent_meals = [m for m in meals if datetime.strptime(m['date'], '%Y-%m-%d %H:%M:%S') > last_week]
-        if recent_meals:
-            total_cal = sum(float(m.get('calories', 0)) for m in recent_meals)
-            avg_cal = total_cal / 7
-            cal_rate = (avg_cal / target.get('calories', 1000)) * 100
-            tendency_msg = f"최근 1주일간 유나는 목표 칼로리의 {cal_rate:.1f}%를 섭취 중이에요."
+        try:
+            last_week = datetime.now() - timedelta(days=7)
+            recent_meals = []
+            for m in meals:
+                # ISO 형식과 일반 형식을 모두 지원하도록 유연하게 파싱
+                date_str = m['date'].replace('T', ' ').split('+')[0].split('.')[0]
+                try:
+                    meal_date = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
+                    if meal_date > last_week:
+                        recent_meals.append(m)
+                except:
+                    continue
+            
+            if recent_meals:
+                total_cal = sum(float(m.get('calories', 0)) for m in recent_meals)
+                avg_cal = total_cal / 7
+                cal_rate = (avg_cal / target.get('calories', 1000)) * 100
+                tendency_msg = f"최근 1주일간 유나는 목표 칼로리의 {cal_rate:.1f}%를 섭취 중이에요."
+        except Exception as e:
+            print(f"추천 분석 에러: {e}")
 
     return jsonify({
         "recommendation": selected_set,
