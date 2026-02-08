@@ -156,10 +156,25 @@ def load_data():
             "target_nutrition": {"calories": 1000, "carbs": 130, "protein": 25, "fat": 30}
         }
         
+        # 데이터 정규화(camelCase -> snake_case) 보장
+        normalized_meals = []
+        for meal in (meals_res.data or []):
+            normalized_meals.append({
+                "id": meal.get('id'),
+                "date": str(meal.get('date')),
+                "meal_type": meal.get('meal_type') or meal.get('mealType') or "간식",
+                "menu_name": meal.get('menu_name') or meal.get('menuName') or "기록 없음",
+                "amount": meal.get('amount') or "보통",
+                "calories": float(meal.get('calories') or 0),
+                "carbs": float(meal.get('carbs') or 0),
+                "protein": float(meal.get('protein') or 0),
+                "fat": float(meal.get('fat') or 0)
+            })
+
         return {
             "user": user_info,
-            "meals": meals_res.data,
-            "growth": growth_res.data
+            "meals": normalized_meals,
+            "growth": growth_res.data or []
         }
     except Exception as e:
         print(f"Supabase 로드 에러: {e}")
@@ -173,13 +188,13 @@ def load_data():
                     normalized_meals.append({
                         "id": m.get('id'),
                         "date": m.get('date'),
-                        "meal_type": m.get('meal_type') or m.get('mealType'),
-                        "menu_name": m.get('menu_name') or m.get('menuName'),
-                        "amount": m.get('amount'),
-                        "calories": m.get('calories'),
-                        "carbs": m.get('carbs'),
-                        "protein": m.get('protein'),
-                        "fat": m.get('fat')
+                        "meal_type": m.get('meal_type') or m.get('mealType') or "간식",
+                        "menu_name": m.get('menu_name') or m.get('menuName') or "기록 없음",
+                        "amount": m.get('amount') or "보통",
+                        "calories": float(m.get('calories') or 0),
+                        "carbs": float(m.get('carbs') or 0),
+                        "protein": float(m.get('protein') or 0),
+                        "fat": float(m.get('fat') or 0)
                     })
                 return {
                     "user": local_data.get('user', {}),
@@ -289,7 +304,7 @@ def record_meal():
     new_meal = {
         "id": str(uuid.uuid4()),
         "date": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-        "meal_type": meal_data.get('mealType'),
+        "meal_type": meal_data.get('mealType') or meal_data.get('meal_type') or "간식",
         "menu_name": menu_name,
         "amount": amount,
         "calories": calories,

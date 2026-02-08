@@ -249,19 +249,23 @@ function loadDashboard() {
                     totals.fat += meal.fat;
                     totals.calories += meal.calories;
 
+                    // 식사 유형 및 메뉴 이름 안전하게 가져오기
+                    const mealType = meal.meal_type || meal.mealType || '간식';
+                    const menuName = meal.menu_name || meal.menuName || '기록 없음';
+
                     // 식사 유형별 클래스 매핑
                     const typeClassMap = { '아침': 'breakfast', '점심': 'lunch', '저녁': 'dinner', '간식': 'snack' };
-                    const typeClass = typeClassMap[meal.meal_type] || '';
+                    const typeClass = typeClassMap[mealType] || '';
 
                     const item = document.createElement('div');
                     item.className = `meal-item ${typeClass}`;
                     item.innerHTML = `
                         <div class="info">
-                            <span class="menu">${meal.menu_name} <small style="color: #888; font-weight: normal;">(${meal.amount || '보통'})</small></span>
+                            <span class="menu">${menuName} <small style="color: #888; font-weight: normal;">(${meal.amount || '보통'})</small></span>
                             <span class="specs">칼로리: ${meal.calories}kcal | 탄: ${meal.carbs}g 단: ${meal.protein}g 지: ${meal.fat}g</span>
                         </div>
                         <div style="display: flex; align-items: center; gap: 10px;">
-                            <span class="type ${typeClass}">${meal.meal_type}</span>
+                            <span class="type ${typeClass}">${mealType}</span>
                             <button class="delete-btn" onclick="deleteMeal('${meal.id}')" title="삭제">×</button>
                         </div>
                     `;
@@ -359,11 +363,14 @@ function renderCalendar() {
                     // 식사 타입별로 그룹화하여 표시
                     const mealTypes = ['아침', '점심', '저녁', '간식'];
                     mealTypes.forEach(type => {
-                        const mealsOfType = dayMeals.filter(m => m.meal_type && m.meal_type.includes(type));
+                        const mealsOfType = dayMeals.filter(m => {
+                            const mType = m.meal_type || m.mealType || '';
+                            return mType.includes(type);
+                        });
                         if (mealsOfType.length > 0) {
                             const label = document.createElement('div');
                             label.className = `meal-label ${getTypeClass(type)}`;
-                            const menuNames = mealsOfType.map(m => m.menu_name).join(', ');
+                            const menuNames = mealsOfType.map(m => m.menu_name || m.menuName || '기록 없음').join(', ');
                             label.innerText = `${type}: ${menuNames}`;
                             label.title = menuNames; // 툴팁으로 전체 메뉴 확인 가능
                             labelsContainer.appendChild(label);
