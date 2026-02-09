@@ -222,12 +222,15 @@ document.addEventListener('DOMContentLoaded', function () {
             this.classList.add('active');
 
             // 콘텐츠 표시 전환
-            if (tab === 'meal') {
-                document.querySelectorAll('.tab-meal').forEach(el => el.classList.remove('hidden'));
-                document.querySelectorAll('.tab-growth').forEach(el => el.classList.add('hidden'));
-            } else {
-                document.querySelectorAll('.tab-meal').forEach(el => el.classList.add('hidden'));
-                document.querySelectorAll('.tab-growth').forEach(el => el.classList.remove('hidden'));
+            // 모든 탭 컨텐츠 숨기기
+            document.querySelectorAll('.tab-meal, .tab-growth, .tab-life').forEach(el => el.classList.add('hidden'));
+
+            // 선택된 탭 컨텐츠 보이기
+            document.querySelectorAll(`.tab-${tab}`).forEach(el => el.classList.remove('hidden'));
+
+            // 생활기록 탭 선택 시 데이터 로드
+            if (tab === 'life') {
+                loadLifeData();
             }
         });
     });
@@ -331,7 +334,7 @@ function loadDashboard() {
                         </div>
                         <div style="display: flex; align-items: center; gap: 10px;">
                             <span class="type ${typeClass}">${mealType}</span>
-                            <button class="delete-btn" onclick="deleteMeal('${meal.id}')" title="삭제">×</button>
+                            <button class="delete-btn-mobile" onclick="deleteMeal('${meal.id}')" title="삭제">🗑️</button>
                         </div>
                     `;
                     mealList.appendChild(item);
@@ -693,7 +696,7 @@ function loadGrowthData() {
                                 <span class="stats">🦒 ${h.height}cm | ⚖️ ${h.weight}kg</span>
                             </div>
                             <div class="actions">
-                                <button class="delete-btn" onclick="deleteGrowthRecord('${h.id}')" title="삭제">×</button>
+                                <button class="delete-btn-mobile" onclick="deleteGrowthRecord('${h.id}')" title="삭제">🗑️</button>
                             </div>
                         </div>
                     `).join('');
@@ -944,6 +947,10 @@ function initSettings() {
             if (data.gemini_api_key) {
                 apiKeyInput.value = data.gemini_api_key;
             }
+            if (data.diaper_pack_sizes) {
+                document.getElementById('diaper-day-pack-input').value = data.diaper_pack_sizes.diaper_day || '';
+                document.getElementById('diaper-night-pack-input').value = data.diaper_pack_sizes.diaper_night || '';
+            }
         } catch (error) {
             console.error('설정 로드 실패:', error);
         }
@@ -964,19 +971,36 @@ function initSettings() {
     // 설정 저장
     saveBtn.addEventListener('click', async () => {
         const apiKey = apiKeyInput.value.trim();
+        const dayPack = document.getElementById('diaper-day-pack-input').value;
+        const nightPack = document.getElementById('diaper-night-pack-input').value;
 
         try {
-            const response = await fetch('/api/settings', {
+            // Gemini API Key 저장
+            const res1 = await fetch('/api/settings', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ gemini_api_key: apiKey })
             });
-            const data = await response.json();
-            if (data.status === 'success') {
+
+            // 기저귀 팩 정보 저장
+            const res2 = await fetch('/api/inventory/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    diaper_day_pack: dayPack,
+                    diaper_night_pack: nightPack
+                })
+            });
+
+            const data1 = await res1.json();
+            const data2 = await res2.json();
+
+            if (data1.status === 'success' && data2.status === 'success') {
                 alert('설정이 저장되었습니다.');
                 modal.style.display = 'none';
+                loadLifeData(); // Reload to reflect any inventory changes if needed
             } else {
-                alert('저장 실패: ' + data.message);
+                alert('일부 설정 저장에 실패했습니다.');
             }
         } catch (error) {
             console.error('설정 저장 에러:', error);
@@ -1101,4 +1125,401 @@ function getDetailedDevelopmentalData(months) {
         if (months >= key) return DEVELOPMENTAL_MILESTONES[key];
     }
     return DEVELOPMENTAL_MILESTONES[0]; // 기본값 (신생아)
+}
+
+// --- 생활 기록 (Life Log) 관련 함수 ---
+
+function loadLifeData() {
+    // 1. 재고 데이터 로드
+    fetch('/api/inventory')
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                renderInventory(data.inventory, data.analysis);
+            }
+        });
+
+    // 2. 타임라인 데이터 로드 (기저귀 + 수면)
+    Promise.all([
+        fetch('/api/diaper').then(res => res.json()),
+        fetch('/api/sleep').then(res => res.json())
+    ]).then(([diaperData, sleepData]) => {
+        let logs = [];
+        if (diaperData.status === 'success') {
+            logs = logs.concat(diaperData.logs.map(log => ({ ...log, category: 'diaper' })));
+        }
+        if (sleepData.status === 'success') {
+            logs = logs.concat(sleepData.logs.map(log => ({
+                ...log,
+                category: 'sleep',
+                date: log.start_time, // 타임라인 정렬용
+            })));
+        }
+
+        // 최신순 정렬
+        logs.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+        renderTimeline(logs);
+
+        // 수면 상태 확인
+        if (sleepData.status === 'success') {
+            const activeSleep = sleepData.logs.find(log => log.end_time === null);
+            updateSleepStatus(activeSleep);
+        }
+    });
+}
+
+function renderInventory(inventory, analysis) {
+    const invMap = {};
+    inventory.forEach(item => invMap[item.item_key] = item);
+
+    // Day Diaper
+    const dayStock = document.getElementById('day-stock');
+    const dayPred = document.getElementById('day-prediction');
+    if (dayStock) {
+        const item = invMap['diaper_day'];
+        const qty = item ? item.quantity : 0;
+        dayStock.innerText = `${qty}개`;
+        dayStock.style.color = qty <= 10 ? '#ff7675' : '#0984e3';
+
+        const ana = analysis['diaper_day'];
+        if (ana && ana.daily_avg > 0) {
+            dayPred.innerHTML = `하루 평균 ${ana.daily_avg}개<br>D-${ana.days_left} (${ana.purchase_date} 구매예정)`;
+        } else {
+            dayPred.innerText = "데이터 분석 중...";
+        }
+    }
+
+    // Night Diaper
+    const nightStock = document.getElementById('night-stock');
+    const nightPred = document.getElementById('night-prediction');
+    if (nightStock) {
+        const item = invMap['diaper_night'];
+        const qty = item ? item.quantity : 0;
+        nightStock.innerText = `${qty}개`;
+        nightStock.style.color = qty <= 5 ? '#ff7675' : '#6c5ce7';
+
+        const ana = analysis['diaper_night'];
+        if (ana && ana.daily_avg > 0) {
+            nightPred.innerHTML = `하루 평균 ${ana.daily_avg}개<br>D-${ana.days_left} (${ana.purchase_date} 구매예정)`;
+        } else {
+            nightPred.innerText = "데이터 분석 중...";
+        }
+    }
+}
+
+function renderTimeline(logs) {
+    const container = document.getElementById('life-timeline');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    if (logs.length === 0) {
+        container.innerHTML = '<p class="empty-msg">오늘의 기록이 없습니다.</p>';
+        return;
+    }
+
+    logs.forEach(log => {
+        const date = new Date(log.date);
+        const timeStr = date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+        const dateStr = date.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
+
+        const item = document.createElement('div');
+        item.className = 'timeline-item';
+        item.style.cssText = "background: white; padding: 12px; border-radius: 10px; display: flex; align-items: center; justify-content: space-between; border: 1px solid #f1f1f1; box-shadow: 0 2px 5px rgba(0,0,0,0.02);";
+
+        let icon = '';
+        let content = '';
+        let styleColor = '#333';
+
+        if (log.category === 'diaper') {
+            const isDay = log.diaper_type === 'day';
+            icon = isDay ? '☀️' : '🌙';
+
+            if (log.type === 'pee') { content = '소변'; styleColor = '#0984e3'; }
+            else if (log.type === 'poop') { content = '대변'; styleColor = '#e17055'; }
+            else { content = '소변+대변'; styleColor = '#d63031'; }
+
+            item.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 1.2rem;">${icon}</span>
+                    <div>
+                        <div style="font-weight: bold; color: ${styleColor};">${content}</div>
+                        <div style="font-size: 0.8rem; color: #aaa;">${dateStr} ${timeStr}</div>
+                    </div>
+                </div>
+                <button class="delete-btn-mobile" onclick="deleteLifeLog('${log.id}', 'diaper')" title="삭제">🗑️</button>
+            `;
+        } else if (log.category === 'sleep') {
+            const isNap = log.type === 'nap';
+            icon = isNap ? '😴' : '🌙';
+            const title = isNap ? '낮잠' : '밤잠';
+
+            let durationStr = '';
+            if (log.end_time) {
+                const start = new Date(log.start_time || log.date);
+                const end = new Date(log.end_time);
+                const diffMs = end - start;
+                const diffHrs = Math.floor(diffMs / 3600000);
+                const diffMins = Math.floor((diffMs % 3600000) / 60000);
+                durationStr = `${diffHrs}시간 ${diffMins}분`;
+            } else {
+                durationStr = '수면 중...';
+            }
+
+            item.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 1.2rem;">${icon}</span>
+                    <div>
+                        <div style="font-weight: bold; color: #6c5ce7;">${title}</div>
+                        <div style="font-size: 0.8rem; color: #aaa;">${dateStr} ${timeStr} ~ ${log.end_time ? new Date(log.end_time).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '진행중'}</div>
+                        <div style="font-size: 0.8rem; color: #fd79a8;">${durationStr}</div>
+                    </div>
+                </div>
+                <button class="delete-btn-mobile" onclick="deleteLifeLog('${log.id}', 'sleep')" title="삭제">🗑️</button>
+            `;
+        }
+
+        container.appendChild(item);
+    });
+}
+
+function recordDiaper(type) {
+    const diaperType = document.querySelector('input[name="diaperType"]:checked').value;
+
+    fetch('/api/diaper', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            type: type,
+            diaperType: diaperType
+        })
+    })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                loadLifeData(); // Reload data
+            } else {
+                alert("오류: " + data.message);
+            }
+        });
+}
+
+// --- Inventory Modal Functions ---
+let currentInvType = 'day';
+let currentInvMode = 'pack';
+
+function openInventoryModal() {
+    const modal = document.getElementById('inventory-modal');
+    modal.classList.remove('hidden');
+    modal.style.display = 'flex'; // Ensure it's visible and centered
+    document.getElementById('inv-amount').value = ''; // Reset value
+    selectInvType('day');
+    selectInvMode('pack');
+}
+
+function closeInventoryModal() {
+    const modal = document.getElementById('inventory-modal');
+    modal.classList.add('hidden');
+    modal.style.display = 'none';
+}
+
+function selectInvType(type) {
+    currentInvType = type;
+    document.querySelectorAll('#modal-type-day, #modal-type-night').forEach(btn => btn.classList.remove('selected'));
+    document.getElementById(`modal-type-${type}`).classList.add('selected');
+
+    // Update button styles for visual feedback
+    const dayBtn = document.getElementById('modal-type-day');
+    const nightBtn = document.getElementById('modal-type-night');
+
+    if (type === 'day') {
+        dayBtn.style.background = '#0984e3'; dayBtn.style.color = 'white'; dayBtn.style.border = '2px solid #0984e3';
+        nightBtn.style.background = '#fff'; nightBtn.style.color = '#b2bec3'; nightBtn.style.border = '2px solid #dfe6e9';
+    } else {
+        nightBtn.style.background = '#6c5ce7'; nightBtn.style.color = 'white'; nightBtn.style.border = '2px solid #6c5ce7';
+        dayBtn.style.background = '#fff'; dayBtn.style.color = '#b2bec3'; dayBtn.style.border = '2px solid #dfe6e9';
+    }
+}
+
+function selectInvMode(mode) {
+    currentInvMode = mode;
+    document.querySelectorAll('#modal-mode-pack, #modal-mode-unit').forEach(btn => btn.classList.remove('selected'));
+    document.getElementById(`modal-mode-${mode}`).classList.add('selected');
+
+    const packBtn = document.getElementById('modal-mode-pack');
+    const unitBtn = document.getElementById('modal-mode-unit');
+    const label = document.getElementById('inv-input-label');
+    const help = document.getElementById('inv-help-text');
+
+    if (mode === 'pack') {
+        packBtn.style.background = '#6c5ce7'; packBtn.style.color = 'white'; packBtn.style.border = '2px solid #6c5ce7';
+        unitBtn.style.background = '#fff'; unitBtn.style.color = '#b2bec3'; unitBtn.style.border = '2px solid #dfe6e9';
+        label.innerText = '추가할 팩 수';
+        help.innerText = '한 팩에 들어있는 개수만큼 추가됩니다.';
+    } else {
+        unitBtn.style.background = '#00b894'; unitBtn.style.color = 'white'; unitBtn.style.border = '2px solid #00b894';
+        packBtn.style.background = '#fff'; packBtn.style.color = '#b2bec3'; packBtn.style.border = '2px solid #dfe6e9';
+        label.innerText = '조절할 낱개 수';
+        help.innerText = '입력한 개수만큼 (+/-) 조절됩니다. 차감하려면 음수(-)를 입력하세요.';
+    }
+}
+
+function submitInventory() {
+    const amountVal = document.getElementById('inv-amount').value;
+    if (!amountVal) {
+        alert("수량을 입력해주세요.");
+        return;
+    }
+
+    const amount = parseInt(amountVal);
+    const itemKey = currentInvType === 'day' ? 'diaper_day' : 'diaper_night';
+    const isPack = currentInvMode === 'pack';
+
+    fetch('/api/inventory/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            item_key: itemKey,
+            amount: amount,
+            is_pack: isPack
+        })
+    })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                alert(data.message);
+                closeInventoryModal();
+                loadLifeData();
+            } else {
+                alert("오류: " + data.message);
+            }
+        });
+}
+
+function deleteLifeLog(id, type) {
+    if (!confirm('기록을 삭제하시겠습니까?')) return;
+
+    fetch(`/api/${type}/delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: id })
+    })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                loadLifeData();
+            } else {
+                alert("삭제 실패: " + data.message);
+            }
+        });
+}
+
+// Sleep Functions
+let sleepInterval = null;
+let activeSleepType = null; // Track locally for reliability
+
+function updateSleepStatus(activeLog) {
+    const statusDiv = document.getElementById('sleep-status');
+    const buttonsDiv = document.getElementById('sleep-buttons');
+    const typeSpan = document.getElementById('current-sleep-type');
+    const timerSpan = document.getElementById('sleep-timer');
+
+    if (activeLog) {
+        statusDiv.style.display = 'block';
+        buttonsDiv.style.display = 'none';
+
+        activeSleepType = activeLog.type;
+        typeSpan.innerText = activeSleepType === 'nap' ? '낮잠' : '밤잠';
+
+        // Timer start
+        if (sleepInterval) clearInterval(sleepInterval);
+
+        const startTime = new Date(activeLog.start_time);
+
+        console.log("Timer starting with start time:", startTime);
+
+        function updateTimer() {
+            const now = new Date();
+            let diff = now.getTime() - startTime.getTime();
+
+            if (diff < 0) diff = 0; // Prevent negative time, just show 0
+
+            const hrs = Math.floor(diff / 3600000);
+            const mins = Math.floor((diff % 3600000) / 60000);
+            const secs = Math.floor((diff % 60000) / 1000);
+
+            // Debug log every 5 seconds to minimize noise
+            if (secs % 5 === 0) {
+                console.log(`Timer Update: ${hrs}:${mins}:${secs} (diff: ${diff}ms)`);
+            }
+
+            timerSpan.innerText = `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        }
+
+        updateTimer();
+        sleepInterval = setInterval(updateTimer, 1000);
+
+    } else {
+        statusDiv.style.display = 'none';
+        buttonsDiv.style.display = 'grid';
+        if (sleepInterval) clearInterval(sleepInterval);
+        activeSleepType = null;
+    }
+}
+
+function startSleep(type) {
+    // 즉시 UI 반영
+    const now = new Date();
+    const mockLog = {
+        type: type,
+        start_time: now.toISOString(), // Use ISO for immediate UI consistency
+        end_time: null
+    };
+    updateSleepStatus(mockLog);
+
+    fetch('/api/sleep', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            action: 'start',
+            type: type,
+            time: now.toISOString() // Explicitly send client-side UTC time
+        })
+    })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                loadLifeData();
+            } else {
+                // Rollback if failed
+                alert("시작 실패: " + data.message);
+                updateSleepStatus(null);
+            }
+        });
+}
+
+function endSleep() {
+    if (!activeSleepType) {
+        // Fallback: try to guess from UI if variable lost (page refresh logic is handled by loadLifeData)
+        const typeText = document.getElementById('current-sleep-type').innerText;
+        activeSleepType = typeText === '낮잠' ? 'nap' : 'night_sleep';
+    }
+
+    const type = activeSleepType;
+
+    fetch('/api/sleep', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            action: 'end',
+            type: type
+        })
+    })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                loadLifeData();
+            }
+        });
 }

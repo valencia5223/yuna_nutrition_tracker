@@ -47,6 +47,7 @@
             <nav class="navbar">
                 <button class="nav-btn active" data-tab="meal">식단기록</button>
                 <button class="nav-btn" data-tab="growth">성장일기</button>
+                <button class="nav-btn" data-tab="life">생활기록</button>
             </nav>
         </header>
 
@@ -212,6 +213,142 @@
                 </div>
             </section>
 
+            <!-- 생활 기록 섹션 -->
+            <section id="life-tracker" class="card tab-life hidden">
+                <h2>유나의 하루 🌿</h2>
+
+                <!-- Inventory Dashboard -->
+                <div class="inventory-dashboard"
+                    style="background: #f8f9fa; padding: 15px; border-radius: 15px; margin-bottom: 25px; border: 1px solid #eee;">
+                    <h3
+                        style="color: #2d3436; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; font-size: 1.1rem;">
+                        📦 기저귀 재고
+                        <button class="btn-small" onclick="openInventoryModal()"
+                            style="background: var(--primary-color);">+ 채워넣기</button>
+                    </h3>
+                    <div class="inventory-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <!-- Day Diaper -->
+                        <div class="inv-item"
+                            style="background: white; padding: 15px; border-radius: 12px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.03); border: 1px solid #f1f1f1;">
+                            <span style="display: block; font-size: 0.9rem; color: #636e72; margin-bottom: 5px;">☀️ 낮
+                                기저귀</span>
+                            <strong id="day-stock"
+                                style="font-size: 1.8rem; color: #0984e3; display: block; line-height: 1;">--</strong>
+                            <div id="day-prediction"
+                                style="font-size: 0.75rem; color: #fd79a8; margin-top: 8px; font-weight: bold;">분석 중...
+                            </div>
+                        </div>
+                        <!-- Night Diaper -->
+                        <div class="inv-item"
+                            style="background: white; padding: 15px; border-radius: 12px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.03); border: 1px solid #f1f1f1;">
+                            <span style="display: block; font-size: 0.9rem; color: #636e72; margin-bottom: 5px;">🌙 밤
+                                기저귀</span>
+                            <strong id="night-stock"
+                                style="font-size: 1.8rem; color: #6c5ce7; display: block; line-height: 1;">--</strong>
+                            <div id="night-prediction"
+                                style="font-size: 0.75rem; color: #fd79a8; margin-top: 8px; font-weight: bold;">분석 중...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Diaper Log -->
+                <div class="life-log-section" style="margin-bottom: 30px;">
+                    <h3 style="margin-bottom: 15px; font-size: 1.1rem; color: #333;">🧷 기저귀 갈기</h3>
+                    <div class="toggle-group" style="display: flex; gap: 10px; margin-bottom: 20px;">
+                        <input type="radio" id="dtype-day" name="diaperType" value="day" checked style="display:none;">
+                        <label for="dtype-day" class="toggle-btn"
+                            style="flex: 1; padding: 15px; text-align: center; border-radius: 12px; font-weight: bold; cursor: pointer; transition: 0.2s; background: #0984e3; color: white; border: 2px solid #0984e3;">
+                            ☀️ 낮 기저귀
+                        </label>
+
+                        <input type="radio" id="dtype-night" name="diaperType" value="night" style="display:none;">
+                        <label for="dtype-night" class="toggle-btn"
+                            style="flex: 1; padding: 15px; text-align: center; border-radius: 12px; font-weight: bold; cursor: pointer; transition: 0.2s; background: #fff; color: #b2bec3; border: 2px solid #dfe6e9;">
+                            🌙 밤 기저귀
+                        </label>
+                    </div>
+
+                    <!-- Simple script for toggle UI -->
+                    <script>
+                        document.querySelectorAll('input[name="diaperType"]').forEach(radio => {
+                            radio.addEventListener('change', function () {
+                                const dayLabel = document.querySelector('label[for="dtype-day"]');
+                                const nightLabel = document.querySelector('label[for="dtype-night"]');
+
+                                if (this.value === 'day') {
+                                    dayLabel.style.background = '#0984e3';
+                                    dayLabel.style.color = 'white';
+                                    dayLabel.style.borderColor = '#0984e3';
+
+                                    nightLabel.style.background = '#fff';
+                                    nightLabel.style.color = '#b2bec3';
+                                    nightLabel.style.borderColor = '#dfe6e9';
+                                } else {
+                                    nightLabel.style.background = '#6c5ce7';
+                                    nightLabel.style.color = 'white';
+                                    nightLabel.style.borderColor = '#6c5ce7';
+
+                                    dayLabel.style.background = '#fff';
+                                    dayLabel.style.color = '#b2bec3';
+                                    dayLabel.style.borderColor = '#dfe6e9';
+                                }
+                            });
+                        });
+                    </script>
+                    <div class="action-buttons" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <button class="btn-action" onclick="recordDiaper('pee')"
+                            style="background: #e1f5fe; color: #0288d1; border: 1px solid #b3e5fc; padding: 15px; border-radius: 12px; font-weight: bold; font-size: 1rem;">
+                            💧 소변
+                        </button>
+                        <button class="btn-action" onclick="recordDiaper('poop')"
+                            style="background: #fff3e0; color: #ef6c00; border: 1px solid #ffe0b2; padding: 15px; border-radius: 12px; font-weight: bold; font-size: 1rem;">
+                            💩 대변
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Sleep Log -->
+                <div class="life-log-section">
+                    <h3 style="margin-bottom: 15px; font-size: 1.1rem; color: #333;">💤 수면 기록</h3>
+                    <div id="sleep-status"
+                        style="margin-bottom: 15px; padding: 15px; background: #2d3436; color: white; border-radius: 12px; text-align: center; display: none; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
+                        <div style="font-size: 0.9rem; opacity: 0.8; margin-bottom: 5px;">현재 잠자는 중... 🤫</div>
+                        <div style="font-size: 1.5rem; font-weight: bold;">
+                            <span id="current-sleep-type">낮잠</span> <span id="sleep-timer"
+                                style="color: #ffd700;">00:00</span>
+                        </div>
+                        <button onclick="endSleep()"
+                            style="margin-top: 10px; background: #ff7675; border: none; color: white; padding: 8px 20px; border-radius: 20px; font-weight: bold; cursor: pointer;">일어나기
+                            ☀️</button>
+                    </div>
+
+                    <div id="sleep-buttons" class="action-buttons"
+                        style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <button class="btn-action" onclick="startSleep('nap')"
+                            style="background: #f3e5f5; color: #8e24aa; border: 1px solid #e1bee7; padding: 15px; border-radius: 12px; font-weight: bold; font-size: 1rem;">
+                            😴 낮잠 시작
+                        </button>
+                        <button class="btn-action" onclick="startSleep('night_sleep')"
+                            style="background: #e8eaf6; color: #3949ab; border: 1px solid #c5cae9; padding: 15px; border-radius: 12px; font-weight: bold; font-size: 1rem;">
+                            🌙 밤잠 시작
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Timeline -->
+                <div class="timeline-section" style="margin-top: 40px;">
+                    <h3
+                        style="margin-bottom: 15px; font-size: 1.1rem; color: #333; border-bottom: 2px solid #eee; padding-bottom: 10px;">
+                        📅 오늘의 기록</h3>
+                    <div id="life-timeline" class="timeline-container"
+                        style="display: flex; flex-direction: column; gap: 12px;">
+                        <!-- JS populated -->
+                        <p class="empty-msg">오늘의 기록이 없습니다.</p>
+                    </div>
+                </div>
+            </section>
+
             <!-- 캘린더 섹션 -->
             <section id="calendar-section" class="card tab-meal">
                 <div class="calendar-header">
@@ -286,6 +423,20 @@
                 </div>
 
                 <div class="form-group" style="margin-bottom: 20px; border-top: 1px dashed #eee; padding-top: 20px;">
+                    <label>⚙️ 기저귀 정보 설정</label>
+                    <div style="display: flex; gap: 10px; margin-top: 10px;">
+                        <div style="flex: 1;">
+                            <label style="font-size: 0.8rem; color: #666;">낮 기저귀 (1팩당 개수)</label>
+                            <input type="number" id="diaper-day-pack-input" class="input-premium" placeholder="예: 50">
+                        </div>
+                        <div style="flex: 1;">
+                            <label style="font-size: 0.8rem; color: #666;">밤 기저귀 (1팩당 개수)</label>
+                            <input type="number" id="diaper-night-pack-input" class="input-premium" placeholder="예: 30">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 20px; border-top: 1px dashed #eee; padding-top: 20px;">
                     <label>🔑 Gemini API Key</label>
                     <p style="font-size: 0.8rem; color: #666; margin-bottom: 8px;">
                         AI 식단 분석 기능을 위해 필요합니다.
@@ -310,6 +461,58 @@
             </div>
             <div id="dev-modal-body" class="modal-body">
                 <!-- 개발 데이터가 여기에 동적으로 삽입됨 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Inventory Modal -->
+    <div id="inventory-modal" class="modal-overlay hidden">
+        <div class="modal-content" style="max-width: 350px;">
+            <h3 class="modal-title">📦 기저귀 재고 관리</h3>
+
+            <div style="margin-bottom: 20px;">
+                <label style="display:block; margin-bottom:8px; font-weight:bold; color:#555;">종류 선택</label>
+                <div class="toggle-group" style="display: flex; gap: 10px;">
+                    <button id="modal-type-day" class="toggle-btn selected" onclick="selectInvType('day')"
+                        style="flex: 1; padding: 12px; border-radius: 10px; border: 2px solid #0984e3; background: #0984e3; color: white; font-weight: bold;">
+                        ☀️ 낮
+                    </button>
+                    <button id="modal-type-night" class="toggle-btn" onclick="selectInvType('night')"
+                        style="flex: 1; padding: 12px; border-radius: 10px; border: 2px solid #dfe6e9; background: #fff; color: #b2bec3; font-weight: bold;">
+                        🌙 밤
+                    </button>
+                </div>
+                <input type="hidden" id="inv-selected-type" value="day">
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <label style="display:block; margin-bottom:8px; font-weight:bold; color:#555;">작업 선택</label>
+                <div class="toggle-group" style="display: flex; gap: 10px;">
+                    <button id="modal-mode-pack" class="toggle-btn selected" onclick="selectInvMode('pack')"
+                        style="flex: 1; padding: 12px; border-radius: 10px; border: 2px solid #6c5ce7; background: #6c5ce7; color: white; font-weight: bold;">
+                        📦 팩 추가
+                    </button>
+                    <button id="modal-mode-unit" class="toggle-btn" onclick="selectInvMode('unit')"
+                        style="flex: 1; padding: 12px; border-radius: 10px; border: 2px solid #dfe6e9; background: #fff; color: #b2bec3; font-weight: bold;">
+                        🔢 낱개 조절
+                    </button>
+                </div>
+                <input type="hidden" id="inv-selected-mode" value="pack">
+            </div>
+
+            <div style="margin-bottom: 25px;">
+                <label id="inv-input-label" style="display:block; margin-bottom:8px; font-weight:bold; color:#555;">추가할
+                    팩 수</label>
+                <input type="number" id="inv-amount" placeholder="수량을 입력하세요"
+                    style="width: 100%; padding: 12px; border: 2px solid #eee; border-radius: 10px; font-size: 1.1rem; text-align: center;">
+                <p id="inv-help-text" style="font-size: 0.8rem; color: #888; margin-top: 5px; text-align: center;">
+                    한 팩에 들어있는 개수만큼 추가됩니다.
+                </p>
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn-cancel" onclick="closeInventoryModal()">닫기</button>
+                <button class="btn-confirm" onclick="submitInventory()">저장</button>
             </div>
         </div>
     </div>

@@ -598,6 +598,79 @@ header h1 {
 }
 
 /* Health Schedule Scrollbar */
+/* Modal Styles */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: none;
+    /* Changed from flex to none by default, JS handles display */
+    justify-content: center;
+    align-items: center;
+    z-index: 3000;
+    backdrop-filter: blur(5px);
+}
+
+.modal-content {
+    background: white;
+    padding: 30px;
+    border-radius: var(--radius-lg);
+    width: 90%;
+    max-width: 400px;
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.2);
+    animation: modalPop 0.3s ease-out;
+}
+
+@keyframes modalPop {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.modal-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 20px;
+    text-align: center;
+    color: var(--text-main);
+}
+
+.modal-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.btn-cancel,
+.btn-confirm {
+    flex: 1;
+    padding: 12px;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 1rem;
+    cursor: pointer;
+    border: none;
+}
+
+.btn-cancel {
+    background: #f1f2f6;
+    color: var(--text-muted);
+}
+
+.btn-confirm {
+    background: var(--primary-color);
+    color: white;
+}
+
 .schedule-container::-webkit-scrollbar {
     width: 6px;
 }
@@ -771,15 +844,16 @@ header h1 {
 .modal {
     display: none;
     position: fixed;
-    z-index: 1000;
+    z-index: 3000;
     left: 0;
     top: 0;
     width: 100%;
     height: 100%;
     overflow: auto;
-    background-color: rgba(0, 0, 0, 0.4);
+    background-color: rgba(0, 0, 0, 0.5);
     backdrop-filter: blur(5px);
-    animation: fadeIn 0.3s ease-out;
+    align-items: center;
+    justify-content: center;
 }
 
 .modal-content {
@@ -1218,12 +1292,12 @@ select:focus {
 
 @keyframes modalFadeIn {
     from {
-        transform: translateY(30px);
+        transform: scale(0.9);
         opacity: 0;
     }
 
     to {
-        transform: translateY(0);
+        transform: scale(1);
         opacity: 1;
     }
 }
@@ -1265,3 +1339,36 @@ button,
 .tag .remove-tag {
     cursor: pointer !important;
 }
+/* Mobile-friendly Delete Button */
+.delete-btn-mobile {
+    background: #fff5f5;
+    color: #ff7675;
+    border: 1px solid #ffe3e3;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+    flex-shrink: 0;
+}
+
+.delete-btn-mobile:active {
+    background: #ffe3e3;
+    transform: scale(0.95);
+}
+
+.delete-btn-mobile:hover {
+    background: #ff7675;
+    color: white;
+}
+
+/* Layout adjustments */
+.meal-item, .growth-history-item, .timeline-item {
+    gap: 15px !important;
+}
+

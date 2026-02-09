@@ -599,16 +599,203 @@ def analyze_meal():
             analysis = json.loads(content)
             return jsonify({
                 "status": "success",
-                "menu": analysis.get("menu", "알 수 없는 음식"),
-                "weight": analysis.get("weight", "100"),
-                "reason": analysis.get("reason", "")
+                "analysis": analysis
             })
-        except Exception as parse_error:
-            print(f"AI 응답 파싱 에러: {parse_error}, 원문: {response.text}")
-            return jsonify({"status": "error", "message": "AI 응답을 해석할 수 없습니다."}), 500
-
+        except Exception as e:
+            print(f"JSON 파싱 실패: {e}")
+            return jsonify({"status": "error", "message": "AI 응답을 분석할 수 없습니다."}), 500
+            
     except Exception as e:
-        print(f"AI 분석 에러: {e}")
+        print(f"이미지 분석 실패: {e}")
+        return jsonify({"status": "error", "message": f"분석 중 오류 발생: {e}"}), 500
+
+# --- 생활 기록 (기저귀/수면/재고) API ---
+
+@app.route('/api/diaper', methods=['POST'])
+def record_diaper():
+    data = request.json
+    # data: { type: 'pee'|'poop'|'both', diaperType: 'day'|'night', date: '...' }
+    
+    new_record = {
+        "id": str(uuid.uuid4()),
+        "date": data.get('date') or datetime.utcnow().isoformat() + 'Z',
+        "type": data.get('type'),
+        "diaper_type": data.get('diaperType', 'day'),
+        "memo": data.get('memo', '')
+    }
+    
+    try:
+        # 1. 기저귀 기록 저장
+        supabase.table('diaper_logs').insert(new_record).execute()
+        
+        # 2. 재고 차감 (자동)
+        inventory_key = f"diaper_{new_record['diaper_type']}"
+        
+        # 현재 재고 확인
+        inv_res = supabase.table('inventory').select('*').eq('item_key', inventory_key).execute()
+        current_qty = 0
+        
+        if inv_res.data:
+            current_qty = inv_res.data[0]['quantity']
+            # 재고 차감 업데이트
+            supabase.table('inventory').update({"quantity": max(0, current_qty - 1)}).eq('item_key', inventory_key).execute()
+        else:
+            # 재고 데이터가 없으면 초기화 (0에서 -1은 안되니 0 유지 혹은 초기값 설정 필요. 여기선 생성 안함)
+            pass
+            
+        return jsonify({"status": "success", "message": "기저귀 기록 및 재고 차감 완료", "record": new_record})
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"기록 실패: {e}"}), 500
+
+@app.route('/api/diaper', methods=['GET'])
+def get_diaper_logs():
+    try:
+        # 최근 100개만 조회 (필요시 날짜 필터링 추가 가능)
+        res = supabase.table('diaper_logs').select('*').order('date', desc=True).limit(100).execute()
+        return jsonify({"status": "success", "logs": res.data})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/diaper/delete', methods=['POST'])
+def delete_diaper():
+    record_id = request.json.get('id')
+    try:
+        # 삭제 시 재고 복구는 복잡해질 수 있으므로 일단 단순 기록 삭제만 구현 (사용자 요청 시 추가)
+        supabase.table('diaper_logs').delete().eq('id', record_id).execute()
+        return jsonify({"status": "success", "message": "삭제되었습니다."})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/sleep', methods=['POST'])
+def record_sleep():
+    data = request.json
+    # data: { action: 'start'|'end', type: 'nap'|'night_sleep', time: '...' }
+    
+    try:
+        if data['action'] == 'start':
+            # 수면 시작: 새로운 레코드 생성 (end_time is null)
+            new_record = {
+                "id": str(uuid.uuid4()),
+                "start_time": data.get('time') or datetime.utcnow().isoformat() + 'Z',
+                "type": data.get('type'),
+                "memo": data.get('memo', '')
+            }
+            supabase.table('sleep_logs').insert(new_record).execute()
+            return jsonify({"status": "success", "message": "수면 시작 기록", "record": new_record})
+            
+        elif data['action'] == 'end':
+            # 수면 종료: 가장 최근의 진행중인(end_time이 없는) 해당 타입 수면을 찾아 업데이트
+            # 진행중인 수면 찾기
+            res = supabase.table('sleep_logs').select('*')\
+                .is_('end_time', 'null')\
+                .eq('type', data.get('type'))\
+                .order('start_time', desc=True)\
+                .limit(1).execute()
+                
+            if res.data:
+                record_id = res.data[0]['id']
+                end_time = data.get('time') or datetime.utcnow().isoformat() + 'Z'
+                supabase.table('sleep_logs').update({"end_time": end_time}).eq('id', record_id).execute()
+                return jsonify({"status": "success", "message": "수면 종료 기록"})
+            else:
+                return jsonify({"status": "error", "message": "진행 중인 수면 기록을 찾을 수 없습니다."}), 404
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"수면 기록 실패: {e}"}), 500
+
+@app.route('/api/sleep', methods=['GET'])
+def get_sleep_logs():
+    try:
+        res = supabase.table('sleep_logs').select('*').order('start_time', desc=True).limit(50).execute()
+        return jsonify({"status": "success", "logs": res.data})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/sleep/delete', methods=['POST'])
+def delete_sleep():
+    record_id = request.json.get('id')
+    try:
+        supabase.table('sleep_logs').delete().eq('id', record_id).execute()
+        return jsonify({"status": "success", "message": "수면 기록이 삭제되었습니다."})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/inventory', methods=['GET'])
+def get_inventory():
+    try:
+        # 1. 현재 재고 조회
+        inv_res = supabase.table('inventory').select('*').execute()
+        inventory = {item['item_key']: item for item in inv_res.data}
+        
+        # 2. 사용량 분석 및 예측
+        analysis = {}
+        for key in ['diaper_day', 'diaper_night']:
+            d_type = key.split('_')[1] # day or night
+            # 최근 7일간 해당 타입 기저귀 사용량 조회
+            seven_days_ago = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+            
+            logs_res = supabase.table('diaper_logs').select('id', 'date')\
+                .eq('diaper_type', d_type)\
+                .gte('date', seven_days_ago).execute()
+            
+            if logs_res.data:
+                # 첫 기록 날짜와 오늘 날짜 사이의 일수 계산 (최대 7일)
+                dates = []
+                for log in logs_res.data:
+                    d_str = log['date'].replace('Z', '')
+                    if '+' in d_str: d_str = d_str.split('+')[0] # Remove offset for naive comparison
+                    dates.append(datetime.fromisoformat(d_str))
+                
+                earliest_date = min(dates)
+                delta_days = (datetime.utcnow() - earliest_date).days + 1
+                divisor = min(max(delta_days, 1), 7)
+                
+                count = len(logs_res.data)
+                daily_avg = count / float(divisor)
+            else:
+                daily_avg = 0
+            
+            current_qty = inventory.get(key, {}).get('quantity', 0)
+            
+            days_left = 999
+            if daily_avg > 0:
+                days_left = int(current_qty / daily_avg)
+            
+            # 구매 예정일
+            purchase_date = (datetime.now() + timedelta(days=days_left)).strftime('%Y-%m-%d') if days_left < 365 else "충분함"
+            
+            analysis[key] = {
+                "daily_avg": round(daily_avg, 1),
+                "days_left": days_left,
+                "purchase_date": purchase_date
+            }
+            
+        return jsonify({"status": "success", "inventory": list(inventory.values()), "analysis": analysis})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/inventory/add', methods=['POST'])
+def add_inventory():
+    data = request.json
+    item_key = data.get('item_key')
+    amount = int(data.get('amount', 0))
+    is_pack = data.get('is_pack', False) # True면 팩 단위, False면 낱개 단위
+    
+    try:
+        res = supabase.table('inventory').select('*').eq('item_key', item_key).execute()
+        if res.data:
+            current = res.data[0]
+            pack_size = current.get('pack_size', 1) 
+            
+            final_add = amount * pack_size if is_pack else amount
+            
+            new_qty = current['quantity'] + final_add
+            supabase.table('inventory').update({"quantity": new_qty}).eq('item_key', item_key).execute()
+            
+            msg = f"{amount}팩({final_add}개) 추가됨" if is_pack else f"{amount}개 조정됨"
+            return jsonify({"status": "success", "message": f"재고가 업데이트되었습니다. ({msg}, 현재: {new_qty}개)"})
+        else:
+            return jsonify({"status": "error", "message": "상품을 찾을 수 없습니다."}), 404
+    except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/settings', methods=['GET', 'POST'])
@@ -623,7 +810,7 @@ def manage_settings():
                 supabase.table('settings').upsert({
                     "id": 1, # 단일 설정 행
                     "gemini_api_key": api_key,
-                    "updated_at": datetime.now().isoformat()
+                    "updated_at": datetime.utcnow().isoformat() + 'Z'
                 }).execute()
             except Exception as db_e:
                 print(f"Supabase 설정 저장 실패 (로컬 백업 시도): {db_e}")
@@ -642,8 +829,33 @@ def manage_settings():
             return jsonify({"status": "error", "message": f"설정 저장 실패: {e}"}), 500
     else:
         # GET 요청 시 현재 설정 반환
-        data = load_data()
-        return jsonify(data.get('settings', {}))
+        try:
+            settings_res = supabase.table('settings').select('*').eq('id', 1).execute()
+            db_settings = settings_res.data[0] if settings_res.data else {}
+            
+            # 기저귀 팩 사이즈 정보도 함께 반환
+            inv_res = supabase.table('inventory').select('item_key', 'pack_size').execute()
+            pack_sizes = {item['item_key']: item['pack_size'] for item in inv_res.data}
+            db_settings['diaper_pack_sizes'] = pack_sizes
+            
+            return jsonify(db_settings)
+        except Exception as e:
+            # Fallback to local data if DB fails
+            data = load_data()
+            return jsonify(data.get('settings', {}))
+
+@app.route('/api/inventory/settings', methods=['POST'])
+def update_inventory_settings():
+    data = request.json
+    # data: { diaper_day_pack: 50, diaper_night_pack: 30 }
+    try:
+        if 'diaper_day_pack' in data:
+            supabase.table('inventory').update({"pack_size": int(data['diaper_day_pack'])}).eq('item_key', 'diaper_day').execute()
+        if 'diaper_night_pack' in data:
+            supabase.table('inventory').update({"pack_size": int(data['diaper_night_pack'])}).eq('item_key', 'diaper_night').execute()
+        return jsonify({"status": "success", "message": "기저귀 팩 설정이 저장되었습니다."})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/recommend', methods=['GET'])
 def recommend_meal():
@@ -794,10 +1006,9 @@ def get_local_ip():
 if __name__ == '__main__':
     local_ip = get_local_ip()
     print("\n" + "="*50)
-    print(f"🚀 유나의 식단 관리 서버가 가동되었습니다!")
-    print(f"🔗 PC 접속 주소: http://localhost:5000")
-    print(f"📱 모바일 접속 주소: http://{local_ip}:5000")
-    print("💡 스마트폰과 PC가 같은 Wi-Fi에 연결되어 있어야 합니다.")
+    print(f"[Server] Yuna Nutrition Tracker Started!")
+    print(f"URL: http://localhost:5000")
+    print(f"Mobile: http://{local_ip}:5000")
     print("="*50 + "\n")
     
     app.run(host='0.0.0.0', port=5000, debug=True)
