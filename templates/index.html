@@ -51,6 +51,71 @@
         </header>
 
         <main>
+            <!-- 식사 기록 섹션 -->
+            <section id="record-meal" class="card tab-meal">
+                <h2>밥 먹었어요! 🍚</h2>
+                <form id="mealForm" class="compact-form" style="background: none; border: none; padding: 0;">
+                    <div class="form-row">
+                        <div class="form-group flex-1">
+                            <label for="mealType">언제?</label>
+                            <select id="mealType" name="mealType">
+                                <option value="아침">아침</option>
+                                <option value="점심">점심</option>
+                                <option value="저녁">저녁</option>
+                                <option value="간식" selected>간식</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group flex-2">
+                            <label>🍰 무엇을 먹었나요?</label>
+                            <div style="display: flex; flex-direction: column; gap: 10px;">
+                                <input type="text" name="menuName" id="ai-menu-name" placeholder="예: 소고기죽, 사과퓨레"
+                                    required>
+                                <button type="button" id="start-ai-analysis" class="btn-small"
+                                    style="width: 100%; background: linear-gradient(135deg, #a29bfe, #6c5ce7); font-size: 0.9rem; padding: 12px; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                                    📸 AI 사진 분석
+                                </button>
+                            </div>
+                            <input type="file" id="meal-photo-input" accept="image/*" style="display: none;">
+                        </div>
+                        <div class="form-group flex-1">
+                            <label>😋 선호도</label>
+                            <select name="preference">
+                                <option value="비선호">비선호</option>
+                                <option value="보통" selected>보통</option>
+                                <option value="선호">선호</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row" style="display: none;">
+                        <div class="form-group">
+                            <label for="calories">칼로리(kcal)</label>
+                            <input type="number" id="calories" name="calories" placeholder="자동 분석">
+                        </div>
+                        <div class="form-group">
+                            <label for="carbs">탄수화물(g)</label>
+                            <input type="number" id="carbs" name="carbs" placeholder="자동 분석">
+                        </div>
+                        <div class="form-group">
+                            <label for="protein">단백질(g)</label>
+                            <input type="number" id="protein" name="protein" placeholder="자동 분석">
+                        </div>
+                        <div class="form-group">
+                            <label for="fat">지방(g)</label>
+                            <input type="number" id="fat" name="fat" placeholder="자동 분석">
+                        </div>
+                    </div>
+                    <p style="font-size: 0.8rem; color: #888; margin-top: -5px; margin-bottom: 10px; display: none;">*
+                        영양소를 모르면
+                        비워두세요.
+                        유나가 대신 분석해줄게요! ✨</p>
+                    <button type="submit" class="btn-premium-action" style="margin-top: 10px;">
+                        <span>기록하기</span>
+                    </button>
+                </form>
+            </section>
+
             <!-- 대시보드 섹션 -->
             <section id="dashboard" class="card tab-meal">
                 <h2>오늘의 영양소</h2>
@@ -166,70 +231,6 @@
                 <!-- 자바스크립트로 데이터 로드 -->
             </section>
 
-            <!-- 식사 기록 섹션 -->
-            <section id="record-meal" class="card tab-meal">
-                <h2>밥 먹었어요! 🍚</h2>
-                <form id="mealForm" class="compact-form" style="background: none; border: none; padding: 0;">
-                    <div class="form-row">
-                        <div class="form-group flex-1">
-                            <label for="mealType">언제?</label>
-                            <select id="mealType" name="mealType">
-                                <option value="아침">아침</option>
-                                <option value="점심">점심</option>
-                                <option value="저녁">저녁</option>
-                                <option value="간식" selected>간식</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group flex-2">
-                            <label>🍰 무엇을 먹었나요?</label>
-                            <div style="display: flex; flex-direction: column; gap: 10px;">
-                                <input type="text" name="menuName" id="ai-menu-name" placeholder="예: 소고기죽, 사과퓨레"
-                                    required>
-                                <button type="button" id="start-ai-analysis" class="btn-small"
-                                    style="width: 100%; background: linear-gradient(135deg, #a29bfe, #6c5ce7); font-size: 0.9rem; padding: 12px; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
-                                    📸 AI 사진 분석
-                                </button>
-                            </div>
-                            <input type="file" id="meal-photo-input" accept="image/*" style="display: none;">
-                        </div>
-                        <div class="form-group flex-1">
-                            <label>😋 선호도</label>
-                            <select name="preference">
-                                <option value="비선호">비선호</option>
-                                <option value="보통" selected>보통</option>
-                                <option value="선호">선호</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="form-row" style="display: none;">
-                        <div class="form-group">
-                            <label for="calories">칼로리(kcal)</label>
-                            <input type="number" id="calories" name="calories" placeholder="자동 분석">
-                        </div>
-                        <div class="form-group">
-                            <label for="carbs">탄수화물(g)</label>
-                            <input type="number" id="carbs" name="carbs" placeholder="자동 분석">
-                        </div>
-                        <div class="form-group">
-                            <label for="protein">단백질(g)</label>
-                            <input type="number" id="protein" name="protein" placeholder="자동 분석">
-                        </div>
-                        <div class="form-group">
-                            <label for="fat">지방(g)</label>
-                            <input type="number" id="fat" name="fat" placeholder="자동 분석">
-                        </div>
-                    </div>
-                    <p style="font-size: 0.8rem; color: #888; margin-top: -5px; margin-bottom: 10px; display: none;">*
-                        영양소를 모르면
-                        비워두세요.
-                        유나가 대신 분석해줄게요! ✨</p>
-                    <button type="submit" class="btn-premium-action" style="margin-top: 10px;">
-                        <span>기록하기</span>
-                    </button>
-                </form>
-            </section>
 
             <!-- 오늘 먹은 목록 -->
             <section id="meal-list-section" class="card tab-meal">
