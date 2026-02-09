@@ -139,6 +139,10 @@
                                 <canvas id="weightChart"></canvas>
                             </div>
                         </div>
+                        <div style="margin-top: 20px; text-align: center;">
+                            <button id="show-dev-info" class="btn-primary"
+                                style="width: 100%; border-radius: 50px; font-weight: bold;">📚 우리아기 발달 정보 보러가기</button>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -183,11 +187,11 @@
                             <input type="text" name="menuName" placeholder="예: 소고기죽, 사과퓨레" required>
                         </div>
                         <div class="form-group flex-1">
-                            <label>🥣 얼마나?</label>
-                            <select name="amount">
+                            <label>😋 선호도</label>
+                            <select name="preference">
+                                <option value="비선호">비선호</option>
                                 <option value="보통" selected>보통</option>
-                                <option value="조금">조금</option>
-                                <option value="많이">많이</option>
+                                <option value="선호">선호</option>
                             </select>
                         </div>
                     </div>
@@ -235,6 +239,18 @@
             </section>
         </main>
     </div>
+    <div id="dev-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>🦒 우리아기 성장 발달표</h2>
+                <button class="close-btn" id="close-dev-modal">&times;</button>
+            </div>
+            <div id="dev-modal-body" class="modal-body">
+                <!-- 개발 데이터가 여기에 동적으로 삽입됨 -->
+            </div>
+        </div>
+    </div>
+
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
 </body>
 

@@ -71,7 +71,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const formData = new FormData(mealForm);
             const mealData = {
                 mealType: formData.get('mealType'),
-                amount: formData.get('amount'),
+                preference: formData.get('preference'),
                 menuName: formData.get('menuName'),
                 calories: parseFloat(formData.get('calories')) || 0,
                 carbs: parseFloat(formData.get('carbs')) || 0,
@@ -95,6 +95,29 @@ document.addEventListener('DOMContentLoaded', function () {
                 });
         });
     }
+
+    // 발달 정보 버튼 클릭 핸들러
+    const showDevInfoBtn = document.getElementById('show-dev-info');
+    if (showDevInfoBtn) {
+        showDevInfoBtn.addEventListener('click', function () {
+            const months = parseInt(document.getElementById('user-months').value) || 0;
+            openDevModal(months);
+        });
+    }
+
+    // 모달 닫기 핸들러
+    const closeDevModalBtn = document.getElementById('close-dev-modal');
+    if (closeDevModalBtn) {
+        closeDevModalBtn.addEventListener('click', closeDevModal);
+    }
+
+    // 모달 바깥 클릭 시 닫기
+    window.addEventListener('click', function (event) {
+        const modal = document.getElementById('dev-modal');
+        if (event.target === modal) {
+            closeDevModal();
+        }
+    });
 
     // 캘린더 이동 제어
     document.getElementById('prevMonth').addEventListener('click', () => {
@@ -297,7 +320,7 @@ function loadDashboard() {
                     item.className = `meal-item ${typeClass}`;
                     item.innerHTML = `
                         <div class="info">
-                            <span class="menu">${menuName} <small style="color: #888; font-weight: normal;">(${meal.amount || '보통'})</small></span>
+                            <span class="menu">${menuName} <small style="color: #888; font-weight: normal;">(${meal.preference || '보통'})</small></span>
                             <span class="specs">칼로리: ${meal.calories}kcal | 탄: ${meal.carbs}g 단: ${meal.protein}g 지: ${meal.fat}g</span>
                         </div>
                         <div style="display: flex; align-items: center; gap: 10px;">
@@ -345,10 +368,10 @@ function loadRecommendation() {
             <p style="color: #666; font-size: 0.9rem; margin-bottom: 15px;">📊 <strong>주간 분석:</strong> ${data.tendency}</p>
             <h3 style="margin-bottom: 10px; color: var(--primary-color);">✨ 유나를 위한 맞춤 하루 식단 (${data.months}개월/${data.stage_name})</h3>
             <div class="rec-grid">
-                <div class="rec-item"><span class="label">☀️ 아침</span><span class="menu">${rec.breakfast}</span></div>
-                <div class="rec-item"><span class="label">🌤️ 점심</span><span class="menu">${rec.lunch}</span></div>
-                <div class="rec-item"><span class="label">🌙 저녁</span><span class="menu">${rec.dinner}</span></div>
-                <div class="rec-item"><span class="label">🍎 간식</span><span class="menu">${rec.snack}</span></div>
+                <div class="rec-item"><span class="label">☀️ 아침 : </span><span class="menu">${rec.breakfast}</span></div>
+                <div class="rec-item"><span class="label">🌤️ 점심 : </span><span class="menu">${rec.lunch}</span></div>
+                <div class="rec-item"><span class="label">🌙 저녁 : </span><span class="menu">${rec.dinner}</span></div>
+                <div class="rec-item"><span class="label">🍎 간식 : </span><span class="menu">${rec.snack}</span></div>
             </div>
             <div class="rec-tip">💡 <strong>성장 팁:</strong> ${data.tip}</div>
         `;
@@ -632,7 +655,7 @@ function loadGrowthData() {
                     historyList.innerHTML = sortedHistory.map(h => `
                         <div class="growth-history-item">
                             <div class="info">
-                                <span class="date">${h.date.split(' ')[0]}</span>
+                                <span class="date">${h.date.substring(0, 10)}</span>
                                 <span class="stats">🦒 ${h.height}cm | ⚖️ ${h.weight}kg</span>
                             </div>
                             <div class="actions">
@@ -645,7 +668,7 @@ function loadGrowthData() {
 
             if (history.length === 0) return;
 
-            const labels = history.map(h => h.date.split(' ')[0]);
+            const labels = history.map(h => h.date.substring(0, 10));
             const heights = history.map(h => h.height);
             const weights = history.map(h => h.weight);
 
@@ -813,4 +836,96 @@ function renderHealthSchedule(birthDateStr) {
             </div>
         `;
     }
+}
+function openDevModal(months) {
+    const modal = document.getElementById('dev-modal');
+    const body = document.getElementById('dev-modal-body');
+    const data = getDetailedDevelopmentalData(months);
+
+    body.innerHTML = `
+        <div style="text-align:center; margin-bottom: 25px;">
+            <p style="font-size: 1.2rem; font-weight: bold; color: var(--text-main);">유나는 현재 <span style="color: var(--primary-color);">${months}개월</span>입니다. ✨</p>
+            <p style="color: var(--text-muted); font-size: 0.9rem;">이 시기 아이들의 일반적인 발달 특징입니다.</p>
+        </div>
+        
+        <div class="dev-category physical">
+            <h3>🏃 신체 발달 (Physical)</h3>
+            <ul>${data.physical.map(item => `<li>${item}</li>`).join('')}</ul>
+        </div>
+        <div class="dev-category language">
+            <h3>💬 언어 발달 (Language)</h3>
+            <ul>${data.language.map(item => `<li>${item}</li>`).join('')}</ul>
+        </div>
+        <div class="dev-category social">
+            <h3>🤝 사회성 발달 (Social)</h3>
+            <ul>${data.social.map(item => `<li>${item}</li>`).join('')}</ul>
+        </div>
+        <div class="dev-category cognitive">
+            <h3>🧠 인지 발달 (Cognitive)</h3>
+            <ul>${data.cognitive.map(item => `<li>${item}</li>`).join('')}</ul>
+        </div>
+        <p style="font-size: 0.8rem; color: #aaa; text-align: center; margin-top: 20px;">* 아이마다 발달 속도는 다를 수 있으니 참고용으로 확인해 주세요.</p>
+    `;
+
+    modal.style.display = "block";
+    document.body.style.overflow = "hidden"; // 스크롤 방지
+}
+
+function closeDevModal() {
+    const modal = document.getElementById('dev-modal');
+    modal.style.display = "none";
+    document.body.style.overflow = "auto";
+}
+
+const DEVELOPMENTAL_MILESTONES = {
+    0: {
+        physical: ["고개를 좌우로 움직일 수 있어요.", "소리에 반응하여 얼굴을 쳐다봅니다.", "움직이는 물체를 눈으로 쫓아요."],
+        language: ["배고픔, 불편함을 울음으로 표현해요.", "옹알이 전 단계의 소리를 내기 시작합니다."],
+        social: ["주양육자의 얼굴과 냄새를 기억해요.", "눈을 맞추려고 노력합니다."],
+        cognitive: ["얼굴을 인식하고 빤히 쳐다봅니다.", "특정 맛과 냄새에 반응합니다."]
+    },
+    4: {
+        physical: ["뒤집기를 완성하는 시기입니다.", "가슴을 들어 올리고 팔로 지탱할 수 있어요.", "물건을 향해 손을 뻗습니다."],
+        language: ["기쁘거나 놀랄 때 소리를 지릅니다.", "모음 위주의 옹알이가 풍부해집니다."],
+        social: ["사회적 미소를 지으며 반응합니다.", "자신과 비슷한 또래에게 관심을 보입니다."],
+        cognitive: ["우연히 재미있던 행동을 반복해요.", "인지적 호기심이 증가하는 단계입니다."]
+    },
+    7: {
+        physical: ["도움 없이 앉아 있을 수 있어요.", "물건을 한 손에서 다른 손으로 옮깁니다.", "배로 기기 시작하거나 앉은 자세로 이동해요."],
+        language: ["자기 이름을 부르면 반응합니다.", "'안 돼' 같은 간단한 금지어를 알아들어요.", "자음과 모음을 섞은 옹알이를 합니다."],
+        social: ["까꿍 놀이를 즐기기 시작합니다.", "낯가림이 생길 수 있는 시기입니다."],
+        cognitive: ["떨어진 물건을 찾으려고 노력합니다.", "사물을 조작하고 탐색하는 능력이 좋아져요."]
+    },
+    10: {
+        physical: ["가구를 잡고 일어서거나 옆으로 걷습니다.", "기어 다니는 속도가 매우 빨라집니다.", "컵을 사용하여 마시려고 시도해요."],
+        language: ["'엄마', '아빠'를 의미 있게 부르기 시작합니다.", "3~5개 정도의 단어를 말할 수 있어요.", "의도적인 제스처(빠이빠이 등)를 합니다."],
+        social: ["사회적 상호작용이 많아지고 손뼉 시늉을 해요.", "자기중심적으로 세상을 이해하기 시작합니다."],
+        cognitive: ["물건의 용도를 알기 시작합니다(빗, 컵 등).", "인지적 추리의 시작 단계입니다."]
+    },
+    13: {
+        physical: ["혼자서 안정적으로 걸을 수 있어요.", "계단을 기어오르거나 걷기를 시도합니다.", "스스로 옷 벗는 것을 돕습니다."],
+        language: ["원하는 것을 손가락으로 가리킵니다.", "'아니요'의 의미로 고개를 젓기도 해요.", "간단한 명령(심부름)을 따를 수 있어요."],
+        social: ["인형에게 밥을 먹이는 등 시늉 놀이를 시작해요.", "독립적인 욕구가 강해지고 자아가 발달합니다."],
+        cognitive: ["사물의 이름을 인지합니다(빠방, 멍멍 등).", "대상영속성 개념이 완성되는 시기입니다."]
+    },
+    19: {
+        physical: ["공을 던지거나 한 발로 잠시 서 있을 수 있어요.", "대근육과 소근육이 눈에 띄게 발달합니다."],
+        language: ["'내 것'이라는 표현을 사용하며 자아를 표현해요.", "어휘력이 급격하게 늘어나는 시기입니다.", "두 단어를 조합하여 말하기 시작합니다."],
+        social: ["타인의 감정을 인식하고 반응합니다.", "특정 물건(애착물)에 강한 애착을 보입니다."],
+        cognitive: ["책 속의 간단한 그림을 알아보고 지칭합니다.", "여러 사물과 상황을 연결 지어 생각해요."]
+    },
+    25: {
+        physical: ["능숙하게 뛰어다니고 선 긋기가 가능해요.", "균형 감각이 좋아져 다양한 활동을 즐깁니다."],
+        language: ["두 단계로 된 요청을 수행할 수 있어요.", "6개 이상의 단어를 포함한 문장을 말합니다."],
+        social: ["슬퍼하는 친구를 토닥여주는 등 공감을 표현해요.", "상상 놀이가 더욱 풍부해집니다."],
+        cognitive: ["기억력과 집중력이 향상됩니다.", "간단한 문제 해결 능력이 생깁니다."]
+    }
+};
+
+function getDetailedDevelopmentalData(months) {
+    const keys = Object.keys(DEVELOPMENTAL_MILESTONES).map(Number).sort((a, b) => b - a);
+    for (let key of keys) {
+        if (months >= key) return DEVELOPMENTAL_MILESTONES[key];
+    }
+    return DEVELOPMENTAL_MILESTONES[0]; // 기본값 (신생아)
 }

@@ -91,11 +91,12 @@ def calculate_nutrition(menu_name, months=12, amount="보통"):
     if weight_match:
         input_weight = float(weight_match.group(1))
     
-    # 섭취량 보정 계수 (중량이 입력된 경우 중량 비율로 대체)
+    # 섭취량 보정 계수 (중량이 입력된 경우 중량 비율로 대체, 그렇지 않으면 '보통' 기준)
     if input_weight is not None:
-        # 기준 중량을 100g으로 잡고 비율 계산 (예: 50g 입력 시 0.5배)
+        # 기준 중량을 100g으로 잡고 비율 계산
         amount_multiplier = input_weight / 100.0
     else:
+        # 이제 UI에서 '얼마나' 항목이 삭제되었으므로 기본값은 항상 '보통'(1.0)입니다.
         amount_multiplier = {"조금": 0.6, "보통": 1.0, "많이": 1.4}.get(amount, 1.0)
     
     # 개월수별 성장 단계 가중치 (성인 기준 데이터를 아기 섭취량으로 변환하는 핵심 계수)
@@ -184,7 +185,7 @@ def load_data():
                 "date": str(meal.get('date')),
                 "meal_type": meal.get('meal_type') or meal.get('mealType') or "간식",
                 "menu_name": meal.get('menu_name') or meal.get('menuName') or "기록 없음",
-                "amount": meal.get('amount') or "보통",
+                "amount": meal.get('amount') or "보통", # Stores preference value
                 "calories": float(meal.get('calories') or 0),
                 "carbs": float(meal.get('carbs') or 0),
                 "protein": float(meal.get('protein') or 0),
@@ -255,7 +256,7 @@ def migrate_local_to_supabase():
                 "date": m.get('date'),
                 "meal_type": m.get('meal_type') or m.get('mealType'),
                 "menu_name": m.get('menu_name') or m.get('menuName'),
-                "amount": m.get('amount'),
+                "amount": m.get('amount') or "보통", # Stores preference value
                 "calories": m.get('calories'),
                 "carbs": m.get('carbs'),
                 "protein": m.get('protein'),
@@ -305,10 +306,9 @@ def get_data():
 def record_meal():
     meal_data = request.json
     menu_name = meal_data.get('menuName', '')
-    amount = meal_data.get('amount', '보통')
+    preference = meal_data.get('preference', '보통')
     
     data = load_data()
-    # 개월수는 load_data() 내부에서 calculate_months()를 통해 자동 계산됨
     user_months = data['user'].get('months', 12)
     
     # 영양소가 비어있거나 0인 경우 자동 계산 시도
@@ -319,19 +319,20 @@ def record_meal():
     
     status_msg = "식단이 기록되었습니다."
     if calories == 0 and carbs == 0 and protein == 0 and fat == 0:
-        auto_nutrition = calculate_nutrition(menu_name, user_months, amount)
+        # 이제 UI에서 '얼마나' 항목이 삭제되었으므로 기본값은 항상 '보통'으로 계산합니다.
+        auto_nutrition = calculate_nutrition(menu_name, user_months, "보통")
         calories = auto_nutrition['calories']
         carbs = auto_nutrition['carbs']
         protein = auto_nutrition['protein']
         fat = auto_nutrition['fat']
-        status_msg = f"'{menu_name}'({amount})을(를) 분석하여 기록했습니다."
+        status_msg = f"'{menu_name}'을(를) 분석하여 기록했습니다."
 
     new_meal = {
         "id": str(uuid.uuid4()),
         "date": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         "meal_type": meal_data.get('mealType') or meal_data.get('meal_type') or "간식",
         "menu_name": menu_name,
-        "amount": amount,
+        "amount": preference, # UI preference value stored in DB amount column
         "calories": calories,
         "carbs": carbs,
         "protein": protein,
@@ -451,16 +452,18 @@ def recommend_meal():
                 {"breakfast": "쌀미음", "lunch": "청경채미음", "dinner": "애호박미음", "snack": "사과퓨레"},
                 {"breakfast": "찹쌀미음", "lunch": "감자미음", "dinner": "브로콜리미음", "snack": "배퓨레"},
                 {"breakfast": "쌀미음", "lunch": "양배추미음", "dinner": "단호박미음", "snack": "바나나퓨레"},
-                {"breakfast": "찹쌀미음", "lunch": "오이미음", "dinner": "청경채미음", "snack": "배퓨레"}
+                {"breakfast": "찹쌀미음", "lunch": "오이미음", "dinner": "고구마미음", "snack": "사과배퓨레"},
+                {"breakfast": "쌀미음", "lunch": "비트미음", "dinner": "청경채미음", "snack": "거른 자두"}
             ],
             "tip": "알레르기 반응을 살피며 새로운 재료를 하나씩 시작해보세요."
         },
         "middle": {
             "menus": [
                 {"breakfast": "소고기 오이죽", "lunch": "닭고기 양파죽", "dinner": "대구살 무죽", "snack": "바나나 요거트"},
-                {"breakfast": "연부두 채소죽", "lunch": "소고기 표고버섯죽", "dinner": "고구마 사과죽", "snack": "치즈"},
-                {"breakfast": "닭고기 브로콜리죽", "lunch": "소고기 미역죽", "dinner": "노른자 채소죽", "snack": "사과"},
-                {"breakfast": "소고기 청경채죽", "lunch": "대구살 애호박죽", "dinner": "닭고기 당근죽", "snack": "배"}
+                {"breakfast": "연두부 채소죽", "lunch": "소고기 표고버섯죽", "dinner": "고구마 사과죽", "snack": "아기치즈"},
+                {"breakfast": "닭고기 브로콜리죽", "lunch": "소고기 미역죽", "dinner": "노른자 채소죽", "snack": "매쉬드 포테이토"},
+                {"breakfast": "소고기 청경채죽", "lunch": "대구살 애호박죽", "dinner": "닭고기 당근죽", "snack": "요구르트"},
+                {"breakfast": "한우 유근피죽", "lunch": "닭안심 시금치죽", "dinner": "소고기 두부죽", "snack": "배 퓨레"}
             ],
             "tip": "철분 보충을 위해 매끼 소고기나 닭고기를 포함하는 것이 좋아요."
         },
@@ -468,27 +471,31 @@ def recommend_meal():
             "menus": [
                 {"breakfast": "소고기 가지 진밥", "lunch": "대구살 시금치 진밥", "dinner": "닭고기 단호박 진밥", "snack": "삶은 계란"},
                 {"breakfast": "전복 채소 진밥", "lunch": "계란 채소 진밥", "dinner": "소고기 브로콜리 진밥", "snack": "블루베리"},
-                {"breakfast": "닭고기 고구마 진밥", "lunch": "소고기 무 진밥", "dinner": "생선살 채소 진밥", "snack": "요거트"},
-                {"breakfast": "중기 볶음밥", "lunch": "닭안심 채소 진밥", "dinner": "소고기 버섯 진밥", "snack": "치즈"}
+                {"breakfast": "닭고기 고구마 진밥", "lunch": "소고기 무 진밥", "dinner": "생선살 채소 진밥", "snack": "플레인 요거트"},
+                {"breakfast": "소고기 송이버섯 진밥", "lunch": "닭안심 채소 진밥", "dinner": "대구살 아욱 진밥", "snack": "아기치즈"},
+                {"breakfast": "한우 콩나물 진밥", "lunch": "소고기 미역 진밥", "dinner": "닭고기 근대 진밥", "snack": "거른 사과"}
             ],
             "tip": "핑거 푸드를 통해 스스로 먹는 즐거움을 가르쳐줄 시기예요."
         },
         "completion": {
             "menus": [
-                {"breakfast": "해물 볶음밥", "lunch": "소고기 미역국 진밥", "dinner": "두부 스테이크", "snack": "찐 감자"},
-                {"breakfast": "닭다리살 채소 볶음밥", "lunch": "대구전과 시금치 무침", "dinner": "야채 치즈 오므라이스", "snack": "우유"},
-                {"breakfast": "소고기 주먹밥", "lunch": "닭살 감자국과 아기밥", "dinner": "생선구이와 나물", "snack": "바나나"},
-                {"breakfast": "계란 볶음밥", "lunch": "소고기 무국과 아기밥", "dinner": "동그랑땡과 채소볶음", "snack": "사과"}
+                {"breakfast": "해물 볶음밥", "lunch": "소고기 미역국 진밥", "dinner": "두부 스테이크 & 찐 채소", "snack": "찐 감자"},
+                {"breakfast": "닭다리살 채소 볶음밥", "lunch": "대구전 & 시금치 무침", "dinner": "야채 치즈 오므라이스", "snack": "아기용 우유"},
+                {"breakfast": "소고기 주먹밥", "lunch": "닭살 감자국 & 밥", "dinner": "가자미 구이 & 나물", "snack": "바나나"},
+                {"breakfast": "계란 볶음밥", "lunch": "소고기 무국 & 밥", "dinner": "동그랑땡 & 채소볶음", "snack": "사과"},
+                {"breakfast": "새우 애호박 볶음밥", "lunch": "한우 아욱국 & 밥", "dinner": "닭안심 구이 & 야채", "snack": "블루베리 요거트"}
             ],
             "tip": "간을 최소화하고 다양한 식감을 경험하게 해주세요."
         },
         "toddler": {
             "menus": [
-                {"breakfast": "불고기 덮밥", "lunch": "곰탕과 생선구이", "dinner": "닭안심 구이와 밥", "snack": "제철 과일"},
-                {"breakfast": "새우 볶음밥", "lunch": "계란국과 계란말이", "dinner": "소고기 무국과 두부조림", "snack": "견과류"},
-                {"breakfast": "오므라이스", "lunch": "닭칼국수", "dinner": "스테이크와 찐채소", "snack": "우유"},
-                {"breakfast": "잡곡밥과 감자국", "lunch": "비빔밥 (맵지 않게)", "dinner": "수육과 배추나물", "snack": "요거트"},
-                {"breakfast": "생선살 볶음밥", "lunch": "아기 카레", "dinner": "된장국", "snack": "과일퓨레"}
+                {"breakfast": "불고기 덮밥", "lunch": "곰탕 & 생선구이", "dinner": "닭안심 간장구이 & 밥", "snack": "제철 과일"},
+                {"breakfast": "새우 볶음밥", "lunch": "계란국 & 계란말이", "dinner": "소고기 무국 & 두부조림", "snack": "견과류 한알"},
+                {"breakfast": "치즈 오므라이스", "lunch": "닭칼국수 (순하게)", "dinner": "함박 스테이크 & 찐채소", "snack": "우유 1컵"},
+                {"breakfast": "잡곡밥 & 감자국", "lunch": "소고기 비빔밥 (간장)", "dinner": "돼지고기 수육 & 배추나물", "snack": "요거트 볼"},
+                {"breakfast": "생선살 볶음밥", "lunch": "아기 카레 & 밥", "dinner": "소고기 된장국 & 야채전", "snack": "고구마 말랭이"},
+                {"breakfast": "전복 유치비빔밥", "lunch": "한우 배추국 & 생선조림", "dinner": "닭곰탕 & 두부부침", "snack": "사과 칩"},
+                {"breakfast": "야채 송송 주먹밥", "lunch": "잔치국수 (저염)", "dinner": "너비아니 & 콩나물무침", "snack": "치즈 한장"}
             ],
             "tip": "세 끼 식사와 간식의 영양 밸런스를 맞춰 성장을 도와주세요."
         }
