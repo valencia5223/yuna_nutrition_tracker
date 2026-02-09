@@ -102,7 +102,7 @@
                         </div>
                     </div>
 
-                    <div class="growth-container" style="margin-top: 0px; border-top: 1px solid #eee;">
+                    <div class="growth-container">
                         <form id="growthForm" class="compact-form">
                             <div class="form-row">
                                 <div class="form-group flex-1">
@@ -113,9 +113,8 @@
                                     <label>현재 몸무게(kg)</label>
                                     <input type="number" step="0.1" name="weight" placeholder="예: 10.2" required>
                                 </div>
-                                <div class="form-group flex-1" style="display: flex; align-items: flex-end;">
-                                    <button type="submit" class="btn-small"
-                                        style="width: 100%; height: 45px;">기록</button>
+                                <div class="form-group flex-1">
+                                    <button type="submit" class="btn-small" style="width: 100%;">기록</button>
                                 </div>
                             </div>
                         </form>
@@ -123,9 +122,9 @@
                             아래 차트에서 유나의 성장 추세를 확인하세요.
                         </div>
 
-                        <div style="margin-bottom: 10px;">
-                            <button id="toggle-growth-history" class="btn-small" style="background-color: #74b9ff;">성장
-                                기록 현황 보러가기</button>
+                        <div style="margin: 15px 0;">
+                            <button id="toggle-growth-history" class="btn-small"
+                                style="width: 100%; background: var(--secondary-color);">성장 기록 현황 보러가기</button>
                         </div>
                         <div id="growth-history-list" class="growth-history-container"
                             style="display: none; margin-bottom: 20px;">
@@ -139,10 +138,24 @@
                                 <canvas id="weightChart"></canvas>
                             </div>
                         </div>
-                        <div style="margin-top: 20px; text-align: center;">
-                            <button id="show-dev-info" class="btn-primary"
-                                style="width: 100%; border-radius: 50px; font-weight: bold;">📚 우리아기 발달 정보 보러가기</button>
+
+                        <div id="growth-prediction-section" style="margin-top: 30px; margin-bottom: 25px;">
+                            <h3
+                                style="font-family: var(--font-heading); color: var(--primary-color); margin-bottom: 15px; display: flex; align-items: center; gap: 8px;">
+                                🔮 미래 성장 예측 (Age 2-20)
+                            </h3>
+                            <div class="prediction-scroll-container">
+                                <div id="prediction-list" class="prediction-grid">
+                                    <!-- JS로 예측 데이터 렌더링 -->
+                                </div>
+                            </div>
+                            <p style="font-size: 0.75rem; color: #999; margin-top: 10px; text-align: center;">
+                                * 현재 성장 백분위가 성인이 될 때까지 유지된다고 가정한 예측치입니다.
+                            </p>
                         </div>
+                        <button id="show-dev-info" class="btn-premium-action">
+                            <span>📚 우리아기 발달 정보 보러가기</span>
+                        </button>
                     </div>
                 </div>
             </section>
@@ -169,15 +182,15 @@
             <!-- 식사 기록 섹션 -->
             <section id="record-meal" class="card tab-meal">
                 <h2>밥 먹었어요! 🍚</h2>
-                <form id="mealForm">
+                <form id="mealForm" class="compact-form" style="background: none; border: none; padding: 0;">
                     <div class="form-row">
-                        <div class="form-group">
+                        <div class="form-group flex-1">
                             <label for="mealType">언제?</label>
                             <select id="mealType" name="mealType">
                                 <option value="아침">아침</option>
                                 <option value="점심">점심</option>
                                 <option value="저녁">저녁</option>
-                                <option value="간식">간식</option>
+                                <option value="간식" selected>간식</option>
                             </select>
                         </div>
                     </div>
@@ -217,7 +230,9 @@
                         영양소를 모르면
                         비워두세요.
                         유나가 대신 분석해줄게요! ✨</p>
-                    <button type="submit" class="btn-primary">기록하기</button>
+                    <button type="submit" class="btn-premium-action" style="margin-top: 10px;">
+                        <span>기록하기</span>
+                    </button>
                 </form>
             </section>
 

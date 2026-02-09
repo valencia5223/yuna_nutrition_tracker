@@ -33,8 +33,8 @@ FOOD_NUTRITION_DATA = {
     "시금치": {"calories": 23, "carbs": 3.6, "protein": 2.9, "fat": 0.4},
     
     # 단백질 및 고기류
-    "소고기": {"calories": 250, "carbs": 0, "protein": 26, "fat": 15},
-    "닭고기": {"calories": 165, "carbs": 0, "protein": 31, "fat": 3.6},
+    "소고기": {"calories": 150, "carbs": 0, "protein": 24, "fat": 6}, # 100g 기준 평균
+    "닭고기": {"calories": 110, "carbs": 0, "protein": 23, "fat": 1.5},
     "대구살": {"calories": 80, "carbs": 0, "protein": 18, "fat": 0.7},
     "전복": {"calories": 90, "carbs": 4, "protein": 15, "fat": 0.8},
     "계란": {"calories": 155, "carbs": 1.1, "protein": 13, "fat": 11},
@@ -49,10 +49,7 @@ FOOD_NUTRITION_DATA = {
     "야채죽": {"calories": 70, "carbs": 16, "protein": 1.5, "fat": 0.5},
     "진밥": {"calories": 120, "carbs": 25, "protein": 2.5, "fat": 0.3},
     
-    # 유아식 메뉴
-    "볶음밥": {"calories": 180, "carbs": 30, "protein": 5, "fat": 4.5},
-    "불고기": {"calories": 200, "carbs": 8, "protein": 18, "fat": 10},
-    # 유아식 메뉴 (1회 제공량 기준 현실화)
+    # 유아식 메뉴 (100g 기준 추정치)
     "볶음밥": {"calories": 150, "carbs": 25, "protein": 5, "fat": 3},
     "짜장밥": {"calories": 160, "carbs": 28, "protein": 6, "fat": 3.5},
     "카레라이스": {"calories": 160, "carbs": 28, "protein": 6, "fat": 3.5},
@@ -64,21 +61,30 @@ FOOD_NUTRITION_DATA = {
     "오므라이스": {"calories": 170, "carbs": 22, "protein": 8, "fat": 6},
     "스테이크": {"calories": 150, "carbs": 2, "protein": 18, "fat": 8},
     
+    # 면류 및 기타 탄수화물
+    "짜장면": {"calories": 150, "carbs": 25, "protein": 5, "fat": 4},
+    "잔치국수": {"calories": 100, "carbs": 20, "protein": 4, "fat": 1},
+    "파스타": {"calories": 160, "carbs": 30, "protein": 5, "fat": 2},
+    "스파게티": {"calories": 160, "carbs": 30, "protein": 5, "fat": 2},
+    "우동": {"calories": 110, "carbs": 22, "protein": 3, "fat": 1},
+    "칼국수": {"calories": 120, "carbs": 25, "protein": 4, "fat": 1},
+    "식빵": {"calories": 250, "carbs": 50, "protein": 8, "fat": 4},
+    "모닝롤": {"calories": 280, "carbs": 55, "protein": 7, "fat": 5},
+    "면": {"calories": 140, "carbs": 28, "protein": 4, "fat": 1},
+    
     # 간식 및 기타
-    "사과": {"calories": 30, "carbs": 8, "protein": 0.2, "fat": 0.1}, # 아기 섭취량 기준
+    "사과": {"calories": 30, "carbs": 8, "protein": 0.2, "fat": 0.1},
     "배": {"calories": 35, "carbs": 9, "protein": 0.2, "fat": 0.1},
     "바나나": {"calories": 50, "carbs": 12, "protein": 0.6, "fat": 0.2},
     "요거트": {"calories": 50, "carbs": 4, "protein": 3, "fat": 2.5},
-    "치즈": {"calories": 60, "carbs": 0.5, "protein": 4, "fat": 5}, # 아기 치즈 1장
+    "치즈": {"calories": 60, "carbs": 0.5, "protein": 4, "fat": 5}, # 1장 기준
     "우유": {"calories": 65, "carbs": 5, "protein": 3.3, "fat": 3.5},
     "블루베리": {"calories": 30, "carbs": 7, "protein": 0.4, "fat": 0.2},
     "퓨레": {"calories": 40, "carbs": 10, "protein": 0.3, "fat": 0.1},
     
     # 기본 식재료 (아기 1회 섭취분량 고려)
-    "밥": {"calories": 150, "carbs": 33, "protein": 3, "fat": 0.5}, # 아기 공기 기준
+    "밥": {"calories": 150, "carbs": 33, "protein": 3, "fat": 0.5},
     "잡곡밥": {"calories": 160, "carbs": 34, "protein": 4, "fat": 1},
-    "소고기": {"calories": 100, "carbs": 0, "protein": 12, "fat": 6}, # 50g 기준
-    "닭고기": {"calories": 80, "carbs": 0, "protein": 15, "fat": 2},
 }
 
 def calculate_nutrition(menu_name, months=12, amount="보통"):
@@ -91,45 +97,56 @@ def calculate_nutrition(menu_name, months=12, amount="보통"):
     if weight_match:
         input_weight = float(weight_match.group(1))
     
-    # 섭취량 보정 계수 (중량이 입력된 경우 중량 비율로 대체, 그렇지 않으면 '보통' 기준)
+    # 섭취량 보정 계수
     if input_weight is not None:
-        # 기준 중량을 100g으로 잡고 비율 계산
         amount_multiplier = input_weight / 100.0
     else:
-        # 이제 UI에서 '얼마나' 항목이 삭제되었으므로 기본값은 항상 '보통'(1.0)입니다.
         amount_multiplier = {"조금": 0.6, "보통": 1.0, "많이": 1.4}.get(amount, 1.0)
     
-    # 개월수별 성장 단계 가중치 (성인 기준 데이터를 아기 섭취량으로 변환하는 핵심 계수)
+    # 개월수별 성장 단계 가중치
     if months < 7: stage_multiplier = 0.4
     elif months < 10: stage_multiplier = 0.5
     elif months < 13: stage_multiplier = 0.6
     elif months < 24: stage_multiplier = 0.7
     else: stage_multiplier = 0.8
     
-    # 중량이 직접 입력된 경우, 이미 절대적인 양을 의미하므로 성장 단계 가중치 영향을 줄임 (또는 제거 고려)
-    # 여기서는 중량 입력 시 더 직관적인 결과(입력값 반영)를 위해 stage_multiplier를 1.0으로 보정 (중량 우선)
     if input_weight is not None:
         stage_multiplier = 1.0
     
-    menus = [m.strip() for m in menu_name.replace(',', ' ').split()]
-    found_any = False
-    for menu in menus:
-        # 중량 텍스트 자체(예: 100g)는 영양소 검색에서 제외
-        if weight_match and weight_match.group(0) in menu:
-            continue
-            
-        for key, value in FOOD_NUTRITION_DATA.items():
-            if key in menu:
-                result["calories"] += value["calories"]
-                result["carbs"] += value["carbs"]
-                result["protein"] += value["protein"]
-                result["fat"] += value["fat"]
-                found_any = True
-                break
+    # 중량 텍스트 제거하고 분석
+    clean_menu = menu_name
+    if weight_match:
+        clean_menu = clean_menu.replace(weight_match.group(0), "")
     
-    if not found_any:
-        # 데이터가 없는 경우 기본 한 끼 권장량 (100g 기준 기본값)
-        result = {"calories": 150, "carbs": 25, "protein": 8, "fat": 4}
+    found_keys = []
+    # 데이터베이스의 모든 키에 대해 매칭 시도
+    for key in FOOD_NUTRITION_DATA.keys():
+        if key in clean_menu:
+            found_keys.append(key)
+    
+    # 중복 매칭 제거 (예: '소고기죽'이 매칭되면 '소고기'는 제외)
+    # 긴 단어 우선 매칭 로직
+    found_keys.sort(key=len, reverse=True)
+    final_keys = []
+    for i, key in enumerate(found_keys):
+        is_sub = False
+        for longer_key in found_keys[:i]:
+            if key in longer_key:
+                is_sub = True
+                break
+        if not is_sub:
+            final_keys.append(key)
+    
+    if final_keys:
+        for key in final_keys:
+            value = FOOD_NUTRITION_DATA[key]
+            result["calories"] += value["calories"]
+            result["carbs"] += value["carbs"]
+            result["protein"] += value["protein"]
+            result["fat"] += value["fat"]
+    else:
+        # 데이터가 없는 경우 기본값 (현실적인 한 끼 권장량)
+        result = {"calories": 120, "carbs": 20, "protein": 6, "fat": 3}
     
     # 최종 보정
     for key in result:
@@ -290,7 +307,12 @@ GIRLS_GROWTH_STANDARD = {
     12: [74.0, 9.1], 13: [75.2, 9.4], 14: [76.4, 9.6], 15: [77.5, 9.8], 
     16: [78.6, 10.0], 17: [79.7, 10.2], 18: [80.7, 10.4], 19: [81.7, 10.5], 
     20: [82.7, 10.7], 21: [83.7, 10.9], 22: [84.6, 11.1], 23: [85.5, 11.2], 
-    24: [86.4, 11.4], 30: [91.3, 12.7], 36: [95.4, 13.9]
+    24: [86.4, 11.4], 30: [91.3, 12.7], 36: [95.4, 13.9],
+    48: [103.3, 16.9], 60: [109.9, 19.3], 72: [116.3, 21.9],
+    84: [122.5, 24.9], 96: [128.2, 28.3], 108: [133.7, 32.5],
+    120: [139.1, 37.3], 132: [145.4, 42.9], 144: [151.7, 48.7],
+    156: [155.6, 52.4], 168: [157.7, 54.3], 180: [158.5, 55.0],
+    192: [158.8, 55.4], 204: [159.0, 55.6], 216: [159.0, 55.6]
 }
 
 @app.route('/')
@@ -433,6 +455,68 @@ def get_growth_history():
         res = supabase.table('growth').select('*').order('date', desc=False).execute()
         return jsonify({"status": "success", "history": res.data})
     except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/growth/predict', methods=['GET'])
+def predict_growth():
+    try:
+        # 최신 성장 데이터 가져오기
+        res = supabase.table('growth').select('*').order('date', desc=True).limit(1).execute()
+        if not res.data:
+            return jsonify({"status": "error", "message": "성장 기록이 없습니다."}), 404
+        
+        last = res.data[0]
+        h_percentile = last.get('h_percentile', 50)
+        w_percentile = last.get('w_percentile', 50)
+        
+        predictions = []
+        # 예측할 나이 (개월수): 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 18, 20세
+        target_ages = [24, 36, 48, 60, 72, 96, 120, 144, 168, 192, 216, 240]
+        
+        # Z-Score 역계산 함수
+        import math
+        def get_value_from_percentile(percentile, avg, cv):
+            # 조잡하지만 간단한 역 정규분포 근사 (NormInv 유사)
+            p = percentile / 100.0
+            p = max(0.01, min(0.99, p))
+            # Z-score 근사 (어느 정도 정확도 보장)
+            z = -1.40824634691 * math.log((1.0 - p) / p) if p >= 0.5 else 1.40824634691 * math.log(p / (1.0 - p))
+            # 0.5일 때 0이 되어야 함. 간단한 매핑 logic
+            a = 8 * (p - 0.5) if 0.45 < p < 0.55 else (0.5 * (1.0 + math.erf(p)) ) # 매우 대략적
+            # 실제로는 scipy.stats.norm.ppf 가 필요하나 라이브러리 최소화를 위해 Z-score 선형 근사
+            z = (p - 0.5) * 5.0 # 백분위에 따른 대략적 Z-score
+            if p > 0.9: z = 2.0
+            elif p > 0.75: z = 1.0
+            elif p > 0.5: z = 0.5
+            elif p < 0.1: z = -2.0
+            elif p < 0.25: z = -1.0
+            elif p < 0.5: z = -0.5
+            else: z = 0
+            
+            return round(avg + (z * avg * cv), 1)
+
+        for age in target_ages:
+            # 216개월(18세) 이후는 18세 데이터 사용
+            lookup_age = min(age, 216)
+            standard_months = sorted(GIRLS_GROWTH_STANDARD.keys())
+            closest_m = min(standard_months, key=lambda x: abs(x - lookup_age))
+            avg_h, avg_w = GIRLS_GROWTH_STANDARD[closest_m]
+            
+            # 예측값 계산 (현재 백분위 유지 가정)
+            # calculate_percentile에서 사용한 CV(변동계수)와 동일하게 적용
+            pred_h = get_value_from_percentile(h_percentile, avg_h, 0.035)
+            pred_w = get_value_from_percentile(w_percentile, avg_w, 0.11)
+            
+            predictions.append({
+                "age": age // 12,
+                "months": age,
+                "height": pred_h,
+                "weight": pred_w
+            })
+            
+        return jsonify({"status": "success", "predictions": predictions})
+    except Exception as e:
+        print(f"예측 에러: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/recommend', methods=['GET'])

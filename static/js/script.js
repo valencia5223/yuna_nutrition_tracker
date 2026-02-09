@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     initChart();
     initGrowthChart(); // 성장 차트 초기화
+    loadGrowthPrediction(); // 미래 성장 예측 로드
     loadUserData();
     loadDashboard();
     loadRecommendation();
@@ -875,6 +876,31 @@ function closeDevModal() {
     const modal = document.getElementById('dev-modal');
     modal.style.display = "none";
     document.body.style.overflow = "auto";
+}
+
+async function loadGrowthPrediction() {
+    const predictionList = document.getElementById('prediction-list');
+    if (!predictionList) return;
+
+    try {
+        const response = await fetch('/api/growth/predict');
+        const data = await response.json();
+
+        if (data.status === 'success') {
+            predictionList.innerHTML = data.predictions.map(pred => `
+                <div class="prediction-item">
+                    <span class="age">만 ${pred.age}세</span>
+                    <span class="stat height">${pred.height}<span class="unit">cm</span></span>
+                    <span class="stat weight">${pred.weight}<span class="unit">kg</span></span>
+                </div>
+            `).join('');
+        } else {
+            predictionList.innerHTML = `<p style="color: #999; font-size: 0.8rem; padding: 10px;">기록을 추가하면 예측이 시작됩니다.</p>`;
+        }
+    } catch (error) {
+        console.error('성장 예측 로드 실패:', error);
+        predictionList.innerHTML = `<p style="color: #ff7675; font-size: 0.8rem;">예측 데이터를 불러올 수 없습니다.</p>`;
+    }
 }
 
 const DEVELOPMENTAL_MILESTONES = {

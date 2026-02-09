@@ -799,6 +799,200 @@ header h1 {
     }
 }
 
+/* Prediction Section Styles */
+.prediction-scroll-container {
+    overflow-x: auto;
+    padding-bottom: 10px;
+    margin: 0 -10px;
+}
+
+.prediction-scroll-container::-webkit-scrollbar {
+    height: 6px;
+}
+
+.prediction-scroll-container::-webkit-scrollbar-thumb {
+    background: #e0e0e0;
+    border-radius: 10px;
+}
+
+.prediction-grid {
+    display: flex;
+    gap: 15px;
+    padding: 5px 10px;
+}
+
+.prediction-item {
+    flex: 0 0 130px;
+    background: white;
+    padding: 15px;
+    border-radius: var(--radius-md);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+    border: 1px solid #f1f2f6;
+    text-align: center;
+    transition: transform 0.3s;
+}
+
+.prediction-item:hover {
+    transform: translateY(-5px);
+    border-color: var(--secondary-color);
+}
+
+.prediction-item .age {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+    display: block;
+}
+
+.prediction-item .stat {
+    display: block;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.prediction-item .height {
+    color: #a29bfe;
+}
+
+.prediction-item .weight {
+    color: #ff9f43;
+    margin-top: 5px;
+}
+
+.prediction-item .unit {
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: #aaa;
+    margin-left: 2px;
+}
+
+/* Unified Premium Form Styles */
+.form-row {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.flex-1 {
+    flex: 1;
+}
+
+.flex-2 {
+    flex: 2;
+}
+
+.form-group label {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+}
+
+input[type="text"],
+input[type="number"],
+input[type="date"],
+select {
+    width: 100%;
+    padding: 14px 18px;
+    border: 1.5px solid #eceff1;
+    border-radius: var(--radius-md);
+    font-family: var(--font-body);
+    font-size: 0.95rem;
+    background: rgba(255, 255, 255, 0.9);
+    transition: all 0.3s ease;
+    color: var(--text-main);
+}
+
+input:focus,
+select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    background: white;
+    box-shadow: 0 0 0 4px rgba(255, 127, 103, 0.1);
+}
+
+.btn-small {
+    padding: 12px 24px;
+    border-radius: 12px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    transition: all 0.3s ease;
+    background: var(--primary-color);
+    color: white;
+    box-shadow: 0 4px 12px rgba(255, 127, 103, 0.15);
+}
+
+.btn-small:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(255, 127, 103, 0.25);
+    filter: brightness(1.05);
+}
+
+.btn-small:active {
+    transform: translateY(0);
+}
+
+.compact-form {
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.5);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--glass-border);
+    margin-top: 10px;
+}
+
+.status-box {
+    background: linear-gradient(135deg, rgba(84, 160, 255, 0.1), rgba(84, 160, 255, 0.05));
+    border: 1px solid rgba(84, 160, 255, 0.2);
+    padding: 15px 20px;
+    border-radius: var(--radius-md);
+    color: var(--text-main);
+    font-size: 0.95rem;
+    font-weight: 500;
+    margin: 20px 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.status-box::before {
+    content: "📊";
+    font-size: 1.2rem;
+}
+
+.btn-premium-action {
+    width: 100%;
+    padding: 16px;
+    border-radius: 50px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--secondary-color), var(--primary-color));
+    color: white;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 8px 20px rgba(162, 155, 254, 0.2);
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin: 15px 0;
+}
+
+.btn-premium-action:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 30px rgba(162, 155, 254, 0.4);
+    filter: brightness(1.1);
+}
+
 .card h2 {
     border-left: 6px solid var(--primary-color);
     padding-left: 15px;
