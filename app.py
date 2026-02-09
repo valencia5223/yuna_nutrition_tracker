@@ -565,7 +565,7 @@ def analyze_meal():
         image_data = image_file.read()
         
         # Gemini 모델 설정 (Vision 모델 사용)
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-2.0-flash')
         
         prompt = """
         이 사진 속 음식이 무엇인지 분석하고, 아이(유아)가 먹을 만한 양으로 대략적인 중량(g)을 예측해줘.
