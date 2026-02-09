@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // AI 사진 분석 초기화
     initAIAnalysis();
     initSettings();
+    initPreferenceEvents(); // 취향 설정 이벤트 리스너 연결
     loadUserData();
     loadDashboard();
     loadRecommendation();
@@ -514,19 +515,25 @@ function loadUserData() {
         });
 }
 
+
 function renderTags(containerId, list, type) {
     const container = document.getElementById(containerId);
     container.innerHTML = '';
     list.forEach(item => {
         const tag = document.createElement('span');
         tag.className = `tag ${type}`;
-        tag.innerHTML = `${item} <span class="remove-tag" onclick="removePreference('${item}', '${type}')">×</span>`;
+        // data attributes for delegation
+        tag.innerHTML = `${item} <span class="remove-tag" data-value="${item}" data-type="${type}" style="cursor:pointer; margin-left:5px;">×</span>`;
         container.appendChild(tag);
     });
 }
 
 function handlePrefInput(e, type) {
+    // IME 입력 중(한글 조합 중)일 때는 이벤트 무시
+    if (e.isComposing) return;
+
     if (e.key === 'Enter' && e.target.value.trim() !== '') {
+        e.preventDefault(); // 폼 제출 방지
         const value = e.target.value.trim();
         fetch('/api/data')
             .then(res => res.json())
@@ -574,11 +581,33 @@ function savePreferences(likes, dislikes) {
         });
 }
 
-// 이벤트 리스너 추가 (DOMContentLoaded 내부에 추가될 수 있도록 helper 호출 등의 구조 고려)
-document.addEventListener('keydown', function (e) {
-    if (e.target.id === 'like-input') handlePrefInput(e, 'like');
-    if (e.target.id === 'dislike-input') handlePrefInput(e, 'dislike');
-});
+// 이벤트 리스너 초기화 (Delegate & Direct)
+function initPreferenceEvents() {
+    // 1. 입력창 Enter 이벤트 (Delegation or Direct)
+    const likeInput = document.getElementById('like-input');
+    const dislikeInput = document.getElementById('dislike-input');
+
+    if (likeInput) {
+        likeInput.addEventListener('keydown', (e) => handlePrefInput(e, 'like'));
+    }
+    if (dislikeInput) {
+        dislikeInput.addEventListener('keydown', (e) => handlePrefInput(e, 'dislike'));
+    }
+
+    // 2. 삭제 버튼 클릭 이벤트 (Event Delegation)
+    const settingsModal = document.getElementById('settings-modal');
+    if (settingsModal) {
+        settingsModal.addEventListener('click', function (e) {
+            if (e.target.classList.contains('remove-tag')) {
+                const value = e.target.getAttribute('data-value');
+                const type = e.target.getAttribute('data-type');
+                if (value && type) {
+                    removePreference(value, type);
+                }
+            }
+        });
+    }
+}
 
 // 성장 차트 초기화
 function initGrowthChart() {

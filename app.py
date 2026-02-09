@@ -509,23 +509,27 @@ def predict_growth():
         # Z-Score 역계산 함수
         import math
         def get_value_from_percentile(percentile, avg, cv):
-            # 조잡하지만 간단한 역 정규분포 근사 (NormInv 유사)
+            # 정규분포 역함수 근사 (Peter John Acklam's algorithm or simple rational approximation)
+            # scipy.stats.norm.ppf(p) 대체
             p = percentile / 100.0
-            p = max(0.01, min(0.99, p))
-            # Z-score 근사 (어느 정도 정확도 보장)
-            z = -1.40824634691 * math.log((1.0 - p) / p) if p >= 0.5 else 1.40824634691 * math.log(p / (1.0 - p))
-            # 0.5일 때 0이 되어야 함. 간단한 매핑 logic
-            a = 8 * (p - 0.5) if 0.45 < p < 0.55 else (0.5 * (1.0 + math.erf(p)) ) # 매우 대략적
-            # 실제로는 scipy.stats.norm.ppf 가 필요하나 라이브러리 최소화를 위해 Z-score 선형 근사
-            z = (p - 0.5) * 5.0 # 백분위에 따른 대략적 Z-score
-            if p > 0.9: z = 2.0
-            elif p > 0.75: z = 1.0
-            elif p > 0.5: z = 0.5
-            elif p < 0.1: z = -2.0
-            elif p < 0.25: z = -1.0
-            elif p < 0.5: z = -0.5
-            else: z = 0
+            if p <= 0: return avg * (1 - 3*cv) # 하한선
+            if p >= 1: return avg * (1 + 3*cv) # 상한선
             
+            # Rational approximation for inverse normal standard deviation
+            # Coefficients
+            c0 = 2.515517
+            c1 = 0.802853
+            c2 = 0.010328
+            d1 = 1.432788
+            d2 = 0.189269
+            d3 = 0.001308
+            
+            t = math.sqrt(-2 * math.log(min(p, 1-p)))
+            z = t - ((c2 * t + c1) * t + c0) / (((d3 * t + d2) * t + d1) * t + 1)
+            
+            if p < 0.5:
+                z = -z
+                
             return round(avg + (z * avg * cv), 1)
 
         for age in target_ages:
