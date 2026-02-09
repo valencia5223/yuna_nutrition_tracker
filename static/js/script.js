@@ -9,6 +9,10 @@ document.addEventListener('DOMContentLoaded', function () {
     initChart();
     initGrowthChart(); // 성장 차트 초기화
     loadGrowthPrediction(); // 미래 성장 예측 로드
+
+    // AI 사진 분석 초기화
+    initAIAnalysis();
+    initSettings();
     loadUserData();
     loadDashboard();
     loadRecommendation();
@@ -838,6 +842,120 @@ function renderHealthSchedule(birthDateStr) {
         `;
     }
 }
+function initAIAnalysis() {
+    const aiBtn = document.getElementById('start-ai-analysis');
+    const photoInput = document.getElementById('meal-photo-input');
+    const loadingOverlay = document.getElementById('ai-loading');
+    const menuInput = document.getElementById('ai-menu-name');
+
+    if (!aiBtn || !photoInput) return;
+
+    aiBtn.addEventListener('click', () => photoInput.click());
+
+    photoInput.addEventListener('change', async (e) => {
+        if (!e.target.files || e.target.files.length === 0) return;
+
+        const file = e.target.files[0];
+        const formData = new FormData();
+        formData.append('image', file);
+
+        // 로딩 시작
+        loadingOverlay.style.display = 'flex';
+
+        try {
+            const response = await fetch('/api/analyze-meal', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (data.status === 'success') {
+                menuInput.value = data.menu;
+                // 중량은 별도 입력창이 없으므로 메뉴 이름 옆에 붙여주거나, 
+                // 향후 중량 입력창이 있다면 거기에 넣어줍니다.
+                // 현재는 메뉴명에 "(AI 예측: ~g)"를 추가합니다.
+                if (data.weight) {
+                    menuInput.value += ` (${data.weight}g)`;
+                }
+
+                // 성공 알림 (선택 사항)
+                console.log(`AI 분석 성공: ${data.menu}, 예상 중량: ${data.weight}g`);
+                console.log(`이유: ${data.reason}`);
+            } else {
+                alert('AI 분석 실패: ' + (data.message || '알 수 없는 오류'));
+            }
+        } catch (error) {
+            console.error('AI 분석 에러:', error);
+            alert('AI 서버와 통신 중 에러가 발생했습니다.');
+        } finally {
+            // 로딩 종료 및 파일 초기화
+            loadingOverlay.style.display = 'none';
+            photoInput.value = '';
+        }
+    });
+}
+
+function initSettings() {
+    const openBtn = document.getElementById('open-settings');
+    const closeBtn = document.getElementById('close-settings');
+    const modal = document.getElementById('settings-modal');
+    const saveBtn = document.getElementById('save-settings');
+    const apiKeyInput = document.getElementById('gemini-api-key-input');
+
+    if (!openBtn || !modal) return;
+
+    // 모달 열기
+    openBtn.addEventListener('click', async () => {
+        modal.style.display = 'flex';
+        // 현재 설정 가져오기
+        try {
+            const response = await fetch('/api/settings');
+            const data = await response.json();
+            if (data.gemini_api_key) {
+                apiKeyInput.value = data.gemini_api_key;
+            }
+        } catch (error) {
+            console.error('설정 로드 실패:', error);
+        }
+    });
+
+    // 모달 닫기
+    closeBtn.addEventListener('click', () => {
+        modal.style.display = 'none';
+    });
+
+    // 바깥쪽 클릭 시 닫기
+    window.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.style.display = 'none';
+        }
+    });
+
+    // 설정 저장
+    saveBtn.addEventListener('click', async () => {
+        const apiKey = apiKeyInput.value.trim();
+
+        try {
+            const response = await fetch('/api/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ gemini_api_key: apiKey })
+            });
+            const data = await response.json();
+            if (data.status === 'success') {
+                alert('설정이 저장되었습니다.');
+                modal.style.display = 'none';
+            } else {
+                alert('저장 실패: ' + data.message);
+            }
+        } catch (error) {
+            console.error('설정 저장 에러:', error);
+            alert('서버와 통신 중 에러가 발생했습니다.');
+        }
+    });
+}
+
 function openDevModal(months) {
     const modal = document.getElementById('dev-modal');
     const body = document.getElementById('dev-modal-body');

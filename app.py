@@ -6,6 +6,8 @@ import uuid
 import socket
 import random
 from supabase import create_client, Client
+import google.generativeai as genai
+import base64
 
 app = Flask(__name__)
 
@@ -13,6 +15,16 @@ app = Flask(__name__)
 SUPABASE_URL = os.environ.get('SUPABASE_URL', 'https://aiqodlsxkckvwxeyvgne.supabase.co')
 SUPABASE_KEY = os.environ.get('SUPABASE_KEY', 'sb_publishable_ClJY0IvWS-mPhw0FaPhxSg_w3x7fbA4')
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# Gemini API 초기 설정 함수
+def configure_gemini(api_key):
+    if api_key:
+        genai.configure(api_key=api_key)
+        return True
+    return False
+
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
+configure_gemini(GEMINI_API_KEY)
 
 # 로컬 백업용 데이터 파일 경로
 DATA_FILE = 'data.json'
@@ -209,10 +221,30 @@ def load_data():
                 "fat": float(meal.get('fat') or 0)
             })
 
+        # 3. 설정 정보 가져오기 (Supabase에 테이블이 없는 경우 로컬 파일 활용)
+        db_settings = {}
+        try:
+            settings_res = supabase.table('settings').select('*').limit(1).execute()
+            db_settings = settings_res.data[0] if settings_res.data else {}
+        except Exception as e:
+            print(f"Supabase settings 테이블 로드 실패 (로컬 파일 사용 권장): {e}")
+            if os.path.exists(DATA_FILE):
+                with open(DATA_FILE, 'r', encoding='utf-8') as f:
+                    local_data = json.load(f)
+                    db_settings = local_data.get('settings', {})
+        
+        # 만약 DB에 API 키가 있다면 환경 변수보다 우선 적용
+        global GEMINI_API_KEY
+        db_api_key = db_settings.get('gemini_api_key')
+        if db_api_key:
+            GEMINI_API_KEY = db_api_key
+            configure_gemini(GEMINI_API_KEY)
+
         return {
             "user": user_info,
             "meals": normalized_meals,
-            "growth": growth_res.data or []
+            "growth": growth_res.data or [],
+            "settings": db_settings
         }
     except Exception as e:
         print(f"Supabase 로드 에러: {e}")
@@ -241,7 +273,8 @@ def load_data():
                 return {
                     "user": user_info,
                     "meals": normalized_meals,
-                    "growth": local_data.get('growth', [])
+                    "growth": local_data.get('growth', []),
+                    "settings": local_data.get('settings', {})
                 }
         return {"user": {}, "meals": [], "growth": []}
 
@@ -518,6 +551,95 @@ def predict_growth():
     except Exception as e:
         print(f"예측 에러: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/analyze-meal', methods=['POST'])
+def analyze_meal():
+    if not GEMINI_API_KEY:
+        return jsonify({"status": "error", "message": "Gemini API 키가 설정되지 않았습니다."}), 400
+    
+    try:
+        if 'image' not in request.files:
+            return jsonify({"status": "error", "message": "이미지 파일이 없습니다."}), 400
+        
+        image_file = request.files['image']
+        image_data = image_file.read()
+        
+        # Gemini 모델 설정 (Vision 모델 사용)
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        
+        prompt = """
+        이 사진 속 음식이 무엇인지 분석하고, 아이(유아)가 먹을 만한 양으로 대략적인 중량(g)을 예측해줘.
+        형식은 반드시 JSON으로만 답변해줘.
+        {
+          "menu": "음식 이름 (예: 소고기 짜장면)",
+          "weight": "숫자만 (예: 150)",
+          "reason": "예측 이유 간략히"
+        }
+        """
+        
+        # 이미지 전송 및 분석
+        response = model.generate_content([
+            prompt,
+            {"mime_type": "image/jpeg", "data": image_data}
+        ])
+        
+        # JSON 응답 파싱
+        try:
+            # AI 응답에서 JSON 블록 추출
+            content = response.text
+            if "```json" in content:
+                content = content.split("```json")[1].split("```")[0].strip()
+            elif "```" in content:
+                content = content.split("```")[1].split("```")[0].strip()
+            
+            analysis = json.loads(content)
+            return jsonify({
+                "status": "success",
+                "menu": analysis.get("menu", "알 수 없는 음식"),
+                "weight": analysis.get("weight", "100"),
+                "reason": analysis.get("reason", "")
+            })
+        except Exception as parse_error:
+            print(f"AI 응답 파싱 에러: {parse_error}, 원문: {response.text}")
+            return jsonify({"status": "error", "message": "AI 응답을 해석할 수 없습니다."}), 500
+
+    except Exception as e:
+        print(f"AI 분석 에러: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/settings', methods=['GET', 'POST'])
+def manage_settings():
+    if request.method == 'POST':
+        new_settings = request.json
+        api_key = new_settings.get('gemini_api_key', '')
+        
+        # Supabase에 설정 저장 시도
+        try:
+            try:
+                supabase.table('settings').upsert({
+                    "id": 1, # 단일 설정 행
+                    "gemini_api_key": api_key,
+                    "updated_at": datetime.now().isoformat()
+                }).execute()
+            except Exception as db_e:
+                print(f"Supabase 설정 저장 실패 (로컬 백업 시도): {db_e}")
+                # 테이블이 없는 경우 등을 위해 로컬 파일에도 강제 저장
+                data = load_data()
+                data['settings'] = {"gemini_api_key": api_key}
+                save_data(data)
+            
+            # 런타임 설정 업데이트
+            global GEMINI_API_KEY
+            GEMINI_API_KEY = api_key
+            configure_gemini(api_key)
+            
+            return jsonify({"status": "success", "message": "설정이 저장되었습니다."})
+        except Exception as e:
+            return jsonify({"status": "error", "message": f"설정 저장 실패: {e}"}), 500
+    else:
+        # GET 요청 시 현재 설정 반환
+        data = load_data()
+        return jsonify(data.get('settings', {}))
 
 @app.route('/api/recommend', methods=['GET'])
 def recommend_meal():

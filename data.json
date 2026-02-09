@@ -1,53 +1,77 @@
 {
     "user": {
+        "id": "00000000-0000-0000-0000-000000000000",
         "name": "차유나",
+        "birth_date": "2024-07-19",
+        "likes": [
+            "짜장",
+            "감자",
+            "숙주"
+        ],
+        "dislikes": [
+            "브로컬리",
+            "애호박",
+            "시금치",
+            "가지"
+        ],
         "target_nutrition": {
-            "calories": 1000,
+            "fat": 30,
             "carbs": 130,
             "protein": 25,
-            "fat": 35
+            "calories": 1000
         },
-        "months": 18,
-        "likes": [
-            "짜장밥"
-        ],
-        "dislikes": [],
-        "birth_date": "2024-07-19",
-        "gender": "여아"
+        "gender": "여아",
+        "updated_at": "2026-02-08T07:39:16.364048+00:00",
+        "months": 18
     },
     "meals": [
         {
-            "meal_type": "아침",
+            "id": "cc62eb2a-235f-4135-a734-34cbbddba809",
+            "date": "2026-02-08T11:16:03+00:00",
+            "meal_type": "저녁",
+            "menu_name": "닭고기 100g,  흰밥 30g",
             "amount": "보통",
-            "menu_name": "소고기 짜장밥 100g",
-            "calories": 260.0,
-            "carbs": 28.0,
+            "calories": 230.0,
+            "carbs": 33.0,
             "protein": 18.0,
-            "fat": 9.5,
-            "id": "af9d3640-7069-4404-adbc-262a464a1b56",
-            "date": "2026-02-08 14:06:38"
+            "fat": 2.5
         },
         {
-            "meal_type": "점심",
-            "amount": "보통",
+            "id": "c7c2a86e-c2f8-454e-aa35-9d2c3c00e337",
+            "date": "2026-02-08T10:17:50+00:00",
+            "meal_type": "아침",
             "menu_name": "소고기 짜장밥 120g",
+            "amount": "보통",
             "calories": 312.0,
             "carbs": 33.6,
             "protein": 21.6,
-            "fat": 11.4,
-            "id": "acdf9427-62b8-466c-9f24-4bb269c2d536",
-            "date": "2026-02-08 14:12:25"
+            "fat": 11.4
+        },
+        {
+            "id": "af456592-b260-48c0-a9dc-0da878181b9b",
+            "date": "2026-02-08T10:02:51+00:00",
+            "meal_type": "점심",
+            "menu_name": "소고기 짜장밥 140g",
+            "amount": "보통",
+            "calories": 364.0,
+            "carbs": 39.2,
+            "protein": 25.2,
+            "fat": 13.3
         }
     ],
     "growth": [
         {
-            "id": "479c1c0a-b764-4da0-9cb6-43cf2bfc57a5",
-            "date": "2026-02-08 14:26:13",
+            "id": "fc8f8c8d-2dcb-47de-98fb-58e42785e42f",
+            "date": "2026-02-08T07:50:41+00:00",
             "months": 18,
-            "height": 80.0,
-            "weight": 11.0,
+            "height": 80,
+            "weight": 11,
             "h_percentile": 40.2,
-            "w_percentile": 70.0
+            "w_percentile": 70,
+            "created_at": "2026-02-08T07:50:41.827543+00:00"
         }
-    ]
+    ],
+    "settings": {
+        "gemini_api_key": "AIzaSyC5WycguktOb3tDEvAOYqyFkDSRH2_acS0"
+    }
 }
