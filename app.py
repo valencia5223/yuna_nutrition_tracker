@@ -1104,10 +1104,32 @@ def update_inventory_settings():
     data = request.json
     # data: { diaper_day_pack: 50, diaper_night_pack: 30 }
     try:
+        # 낮 기저귀 설정
         if 'diaper_day_pack' in data:
-            supabase.table('inventory').update({"pack_size": int(data['diaper_day_pack'])}).eq('item_key', 'diaper_day').execute()
+            pack_size = int(data['diaper_day_pack'])
+            res = supabase.table('inventory').select('*').eq('item_key', 'diaper_day').execute()
+            if res.data:
+                supabase.table('inventory').update({"pack_size": pack_size}).eq('item_key', 'diaper_day').execute()
+            else:
+                supabase.table('inventory').insert({
+                    "item_key": "diaper_day",
+                    "pack_size": pack_size,
+                    "quantity": 0
+                }).execute()
+        
+        # 밤 기저귀 설정
         if 'diaper_night_pack' in data:
-            supabase.table('inventory').update({"pack_size": int(data['diaper_night_pack'])}).eq('item_key', 'diaper_night').execute()
+            pack_size = int(data['diaper_night_pack'])
+            res = supabase.table('inventory').select('*').eq('item_key', 'diaper_night').execute()
+            if res.data:
+                supabase.table('inventory').update({"pack_size": pack_size}).eq('item_key', 'diaper_night').execute()
+            else:
+                supabase.table('inventory').insert({
+                    "item_key": "diaper_night",
+                    "pack_size": pack_size,
+                    "quantity": 0
+                }).execute()
+                
         return jsonify({"status": "success", "message": "기저귀 팩 설정이 저장되었습니다."})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500

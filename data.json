@@ -74,5 +74,82 @@
     ],
     "settings": {
         "gemini_api_key": "AIzaSyC5WycguktOb3tDEvAOYqyFkDSRH2_acS0"
+    },
+    "growth_prediction": {
+        "status": "success",
+        "predictions": [
+            {
+                "age": 2,
+                "months": 24,
+                "height": 85.7,
+                "weight": 12.1
+            },
+            {
+                "age": 3,
+                "months": 36,
+                "height": 94.6,
+                "weight": 14.7
+            },
+            {
+                "age": 4,
+                "months": 48,
+                "height": 102.4,
+                "weight": 17.9
+            },
+            {
+                "age": 5,
+                "months": 60,
+                "height": 108.9,
+                "weight": 20.4
+            },
+            {
+                "age": 6,
+                "months": 72,
+                "height": 115.3,
+                "weight": 23.2
+            },
+            {
+                "age": 8,
+                "months": 96,
+                "height": 127.1,
+                "weight": 29.9
+            },
+            {
+                "age": 10,
+                "months": 120,
+                "height": 137.9,
+                "weight": 39.4
+            },
+            {
+                "age": 12,
+                "months": 144,
+                "height": 150.4,
+                "weight": 51.5
+            },
+            {
+                "age": 14,
+                "months": 168,
+                "height": 156.3,
+                "weight": 57.4
+            },
+            {
+                "age": 16,
+                "months": 192,
+                "height": 157.4,
+                "weight": 58.6
+            },
+            {
+                "age": 18,
+                "months": 216,
+                "height": 157.6,
+                "weight": 58.8
+            },
+            {
+                "age": 20,
+                "months": 240,
+                "height": 157.6,
+                "weight": 58.8
+            }
+        ]
     }
 }
