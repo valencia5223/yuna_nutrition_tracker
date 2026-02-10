@@ -801,6 +801,132 @@ def analyze_meal():
     try:
         if 'image' not in request.files:
             return jsonify({"status": "error", "message": "이미지 파일이 없습니다."}), 400
+            
+        file = request.files['image']
+        if file.filename == '':
+            return jsonify({"status": "error", "message": "선택된 파일이 없습니다."}), 400
+            
+        # 이미지 읽기
+        image_data = file.read()
+        
+        # Gemini 모델 설정
+        model = genai.GenerativeModel('gemini-2.0-flash')
+        
+        # 프롬프트 구성
+        prompt = """
+        이 사진은 아기가 먹을 이유식이나 유아식입니다. 
+        이 음식의 메뉴 이름(menu)과 대략적인 중량(weight, g단위)을 추정해서 JSON 형식으로 알려주세요.
+        이유는 간단히 한국어로 설명해주세요(reason).
+        
+        JSON 포맷:
+        {
+            "menu": "메뉴이름",
+            "weight": 100,
+            "reason": "이유 설명"
+        }
+        """
+        
+        parts = [
+            {"mime_type": "image/jpeg", "data": image_data},
+            {"text": prompt}
+        ]
+        
+        response = model.generate_content(parts)
+        result_text = response.text
+        
+        # JSON 파싱 (코드 블록 제거)
+        if "```json" in result_text:
+            result_text = result_text.split("```json")[1].split("```")[0].strip()
+        elif "```" in result_text:
+            result_text = result_text.split("```")[1].split("```")[0].strip()
+            
+        result_json = json.loads(result_text)
+        
+        return jsonify({
+            "status": "success",
+            "menu": result_json.get("menu", "알 수 없음"),
+            "weight": result_json.get("weight", 0),
+            "reason": result_json.get("reason", "")
+        })
+        
+    except Exception as e:
+        print(f"Gemini 분석 에러: {e}")
+        error_msg = str(e)
+        if "403" in error_msg:
+            return jsonify({"status": "error", "message": "API 키 오류 (403). 올바른 키인지 확인해주세요."}), 403
+        return jsonify({"status": "error", "message": f"분석 실패: {error_msg}"}), 500
+
+@app.route('/api/settings', methods=['GET', 'POST'])
+def handle_settings():
+    if request.method == 'GET':
+        data = load_data()
+        settings = data.get('settings', {})
+        return jsonify(settings)
+    
+    # POST
+    new_settings = request.json
+    try:
+        # 기존 설정 가져오기
+        current = supabase.table('settings').select('*').limit(1).execute()
+        
+        if current.data:
+            # 업데이트
+            sid = current.data[0]['id']
+            supabase.table('settings').update(new_settings).eq('id', sid).execute()
+        else:
+            # 새로 생성
+            new_settings['id'] = str(uuid.uuid4())
+            supabase.table('settings').insert(new_settings).execute()
+            
+        # API 키가 변경되었으면 즉시 적용
+        if 'gemini_api_key' in new_settings:
+            global GEMINI_API_KEY
+            GEMINI_API_KEY = new_settings['gemini_api_key']
+            configure_gemini(GEMINI_API_KEY)
+            
+        cache_invalidate('load_data')
+        return jsonify({"status": "success", "message": "설정이 저장되었습니다."})
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"설정 저장 실패: {e}"}), 500
+
+@app.route('/api/inventory/settings', methods=['POST'])
+def save_inventory_settings():
+    data = request.json
+    day_pack = data.get('diaper_day_pack')
+    night_pack = data.get('diaper_night_pack')
+    
+    try:
+        # 기존 설정 가져오기
+        current = supabase.table('settings').select('*').limit(1).execute()
+        
+        pack_settings = {}
+        if day_pack: pack_settings['diaper_day'] = int(day_pack)
+        if night_pack: pack_settings['diaper_night'] = int(night_pack)
+        
+        if current.data:
+            sid = current.data[0]['id']
+            # 기존 diaper_pack_sizes 가져와서 병합
+            existing_packs = current.data[0].get('diaper_pack_sizes', {}) or {}
+            existing_packs.update(pack_settings)
+            
+            supabase.table('settings').update({
+                "diaper_pack_sizes": existing_packs
+            }).eq('id', sid).execute()
+        else:
+            new_id = str(uuid.uuid4())
+            supabase.table('settings').insert({
+                "id": new_id,
+                "diaper_pack_sizes": pack_settings
+            }).execute()
+            
+        cache_invalidate('load_data')
+        return jsonify({"status": "success", "message": "기저귀 설정이 저장되었습니다."})
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"기저귀 설정 저장 실패: {e}"}), 500
+
+    try:
+        if 'image' not in request.files:
+            return jsonify({"status": "error", "message": "이미지 파일이 없습니다."}), 400
         
         image_file = request.files['image']
         image_data = image_file.read()

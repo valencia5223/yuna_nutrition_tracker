@@ -1,5 +1,5 @@
 -- 사용자 프로필 테이블 생성
-CREATE TABLE user_profile (
+CREATE TABLE IF NOT EXISTS user_profile (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name TEXT DEFAULT '차유나',
     birth_date DATE DEFAULT '2024-07-19',
@@ -15,7 +15,7 @@ INSERT INTO user_profile (id, name) VALUES ('00000000-0000-0000-0000-00000000000
 ON CONFLICT (id) DO NOTHING;
 
 -- 식단 기록 테이블 생성
-CREATE TABLE meals (
+CREATE TABLE IF NOT EXISTS meals (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     meal_type TEXT,
@@ -29,7 +29,7 @@ CREATE TABLE meals (
 );
 
 -- 성장 기록 테이블 생성
-CREATE TABLE growth (
+CREATE TABLE IF NOT EXISTS growth (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     months INTEGER,
@@ -40,7 +40,16 @@ CREATE TABLE growth (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- 설정 테이블 생성 (새로 추가됨)
+CREATE TABLE IF NOT EXISTS settings (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    gemini_api_key TEXT,
+    diaper_pack_sizes JSONB DEFAULT '{"diaper_day": 50, "diaper_night": 30}',
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- RLS (Row Level Security) 설정 - 간단한 개인화 앱이므로 비활성화하거나 전체 허용
 ALTER TABLE user_profile DISABLE ROW LEVEL SECURITY;
 ALTER TABLE meals DISABLE ROW LEVEL SECURITY;
 ALTER TABLE growth DISABLE ROW LEVEL SECURITY;
+ALTER TABLE settings DISABLE ROW LEVEL SECURITY;

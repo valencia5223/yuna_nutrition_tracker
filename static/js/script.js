@@ -318,6 +318,7 @@ function updateAllUI(data, growthPrediction) {
     // 5. 성장 데이터 업데이트
     if (data.growth && data.growth.length > 0) {
         updateGrowthCharts(data.growth);
+        renderGrowthList(data.growth);
     }
 
     // 6. 성장 예측 업데이트
@@ -872,42 +873,36 @@ function loadGrowthData() {
         .then(res => res.json())
         .then(data => {
             const history = data.history || [];
-
-            // 성장 기록 현황 목록 렌더링
-            const historyList = document.getElementById('growth-history-list');
-            if (historyList) {
-                if (history.length === 0) {
-                    historyList.innerHTML = '<p style="text-align: center; color: #888;">아직 기록된 성장 데이터가 없습니다.</p>';
-                } else {
-                    // 최신순으로 표시하기 위해 배열 복사 후 reverse
-                    const sortedHistory = [...history].reverse();
-                    historyList.innerHTML = sortedHistory.map(h => `
-                        <div class="growth-history-item">
-                            <div class="info">
-                                <span class="date">${h.date.substring(0, 10)}</span>
-                                <span class="stats">🦒 ${h.height}cm | ⚖️ ${h.weight}kg</span>
-                            </div>
-                            <div class="actions">
-                                <button class="delete-btn-mobile" onclick="deleteGrowthRecord('${h.id}')" title="삭제">🗑️</button>
-                            </div>
-                        </div>
-                    `).join('');
-                }
-            }
-
-            if (history.length === 0) return;
-
-            updateGrowthCharts(history);
-
-            // 마지막 기록으로 상태 메시지 업데이트
-            const last = history[history.length - 1];
-            const statusEl = document.getElementById('growth-status');
-            if (statusEl) {
-                const hTop = Math.round((100 - last.h_percentile) * 10) / 10;
-                const wTop = Math.round((100 - last.w_percentile) * 10) / 10;
-                statusEl.innerText = `마지막 기록(${last.months}개월): 키 ${last.height}cm (상위 ${hTop}%) | 몸무게 ${last.weight}kg (상위 ${wTop}%)`;
+            renderGrowthList(history);
+            if (history.length > 0) {
+                updateGrowthCharts(history);
             }
         });
+}
+
+// 성장 기록 목록 렌더링 함수
+function renderGrowthList(history) {
+    const historyList = document.getElementById('growth-history-list');
+    if (!historyList) return;
+
+    if (!history || history.length === 0) {
+        historyList.innerHTML = '<p style="text-align: center; color: #888;">아직 기록된 성장 데이터가 없습니다.</p>';
+        return;
+    }
+
+    // 최신순으로 표시하기 위해 배열 복사 후 reverse
+    const sortedHistory = [...history].reverse();
+    historyList.innerHTML = sortedHistory.map(h => `
+        <div class="growth-history-item">
+            <div class="info">
+                <span class="date">${h.date.substring(0, 10)}</span>
+                <span class="stats">🦒 ${h.height}cm | ⚖️ ${h.weight}kg</span>
+            </div>
+            <div class="actions">
+                <button class="delete-btn-mobile" onclick="deleteGrowthRecord('${h.id}')" title="삭제">🗑️</button>
+            </div>
+        </div>
+    `).join('');
 }
 
 // 성장 차트 업데이트 함수 (최적화용)
@@ -937,6 +932,7 @@ function updateGrowthCharts(history) {
         statusEl.innerText = `마지막 기록(${last.months}개월): 키 ${last.height}cm (상위 ${hTop}%) | 몸무게 ${last.weight}kg (상위 ${wTop}%)`;
     }
 }
+
 
 function speak(text) {
     if ('speechSynthesis' in window) {
@@ -1258,29 +1254,40 @@ function closeDevModal() {
 }
 
 async function loadGrowthPrediction() {
-    const predictionList = document.getElementById('prediction-list');
-    if (!predictionList) return;
-
     try {
         const response = await fetch('/api/growth/predict');
         const data = await response.json();
 
         if (data.status === 'success') {
-            predictionList.innerHTML = data.predictions.map(pred => `
-                <div class="prediction-item">
-                    <span class="age">만 ${pred.age}세</span>
-                    <span class="stat height">${pred.height}<span class="unit">cm</span></span>
-                    <span class="stat weight">${pred.weight}<span class="unit">kg</span></span>
-                </div>
-            `).join('');
+            renderGrowthPrediction(data.predictions);
         } else {
-            predictionList.innerHTML = `<p style="color: #999; font-size: 0.8rem; padding: 10px;">기록을 추가하면 예측이 시작됩니다.</p>`;
+            document.getElementById('prediction-list').innerHTML = `<p style="color: #999; font-size: 0.8rem; padding: 10px;">기록을 추가하면 예측이 시작됩니다.</p>`;
         }
     } catch (error) {
         console.error('성장 예측 로드 실패:', error);
-        predictionList.innerHTML = `<p style="color: #ff7675; font-size: 0.8rem;">예측 데이터를 불러올 수 없습니다.</p>`;
+        const list = document.getElementById('prediction-list');
+        if (list) list.innerHTML = `<p style="color: #ff7675; font-size: 0.8rem;">예측 데이터를 불러올 수 없습니다.</p>`;
     }
 }
+
+function renderGrowthPrediction(predictions) {
+    const predictionList = document.getElementById('prediction-list');
+    if (!predictionList) return;
+
+    if (!predictions || predictions.length === 0) {
+        predictionList.innerHTML = `<p style="color: #999; font-size: 0.8rem; padding: 10px;">예측 데이터가 없습니다.</p>`;
+        return;
+    }
+
+    predictionList.innerHTML = predictions.map(pred => `
+        <div class="prediction-item">
+            <span class="age">만 ${pred.age}세</span>
+            <span class="stat height">${pred.height}<span class="unit">cm</span></span>
+            <span class="stat weight">${pred.weight}<span class="unit">kg</span></span>
+        </div>
+    `).join('');
+}
+
 
 const DEVELOPMENTAL_MILESTONES = {
     0: {
