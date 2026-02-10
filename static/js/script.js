@@ -277,17 +277,17 @@ function initChart() {
     });
 }
 
-// 통합 데이터 로딩 함수 (최적화)
+// 통합 데이터 로딩 함수 (최적화 - 단일 API 호출)
 async function loadAllDataOptimized() {
     try {
-        // 로딩 표시 (선택사항)
         showLoadingState();
 
-        // 통합 API와 개별 API를 병렬로 호출
-        const [dashboardData, growthPrediction] = await Promise.all([
-            fetch('/api/data').then(res => res.json()),
-            fetch('/api/growth/predict').then(res => res.json()).catch(() => null)
-        ]);
+        // 단일 API 호출로 모든 데이터 + 성장 예측 한번에 로드
+        const response = await fetch('/api/data');
+        const dashboardData = await response.json();
+
+        // 성장 예측은 서버 응답에 이미 포함됨
+        const growthPrediction = dashboardData.growth_prediction || null;
 
         // 캐시에 저장
         cachedData = dashboardData;
@@ -295,7 +295,6 @@ async function loadAllDataOptimized() {
         // 모든 UI 업데이트를 한번에 수행
         updateAllUI(dashboardData, growthPrediction);
 
-        // 로딩 상태 해제
         hideLoadingState();
     } catch (error) {
         console.error('데이터 로딩 실패:', error);
@@ -328,15 +327,29 @@ function updateAllUI(data, growthPrediction) {
 }
 
 function showLoadingState() {
-    // 스켈레톤 UI 표시 (간단한 버전)
+    // 스켈레톤 UI 표시
     const mealList = document.getElementById('meal-list');
     if (mealList) {
-        mealList.innerHTML = '<p class="empty-msg">데이터 불러오는 중...</p>';
+        mealList.innerHTML = `
+            <div class="skeleton-loader">
+                <div class="skeleton-item"></div>
+                <div class="skeleton-item"></div>
+                <div class="skeleton-item"></div>
+            </div>
+        `;
     }
+    // 메인 컨텐츠 영역 fade-out
+    const main = document.querySelector('.container');
+    if (main) main.style.opacity = '0.6';
 }
 
 function hideLoadingState() {
-    // 로딩 상태 해제는 데이터 업데이트 시 자동으로 처리됨
+    // 메인 컨텐츠 fade-in
+    const main = document.querySelector('.container');
+    if (main) {
+        main.style.transition = 'opacity 0.3s ease';
+        main.style.opacity = '1';
+    }
 }
 
 function updateUserInfo(user) {

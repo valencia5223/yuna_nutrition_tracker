@@ -9,9 +9,38 @@ import random
 from supabase import create_client, Client
 import google.generativeai as genai
 import base64
+import time
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 app = Flask(__name__)
 Compress(app)  # Gzip 압축 활성화
+
+# === 서버 캐싱 시스템 (TTL 30초) ===
+_cache = {}
+_cache_lock = threading.Lock()
+CACHE_TTL = 30  # 초
+
+def cache_get(key):
+    with _cache_lock:
+        if key in _cache:
+            data, ts = _cache[key]
+            if time.time() - ts < CACHE_TTL:
+                return data
+            del _cache[key]
+    return None
+
+def cache_set(key, data):
+    with _cache_lock:
+        _cache[key] = (data, time.time())
+
+def cache_invalidate(*keys):
+    with _cache_lock:
+        if keys:
+            for k in keys:
+                _cache.pop(k, None)
+        else:
+            _cache.clear()
 
 # Supabase 설정 (환경 변수 우선, 없으면 사용자 제공값 사용)
 SUPABASE_URL = os.environ.get('SUPABASE_URL', 'https://aiqodlsxkckvwxeyvgne.supabase.co')
@@ -186,18 +215,42 @@ def calculate_months(birth_date_str):
         return 12
 
 def load_data():
-    """Supabase에서 데이터를 불러오고, 필요 시 로컬 데이터를 마이그레이션합니다."""
+    """Supabase에서 데이터를 불러오고, 필요 시 로컬 데이터를 마이그레이션합니다.
+    캐싱 + 병렬 쿼리로 최적화."""
+    # 캐시 확인
+    cached = cache_get('load_data')
+    if cached:
+        return cached
+    
     try:
-        # 1. 사용자 프로필 가져오기 (단일 사용자 시스템)
-        user_res = supabase.table('user_profile').select('*').eq('id', '00000000-0000-0000-0000-000000000000').execute()
+        # 병렬 쿼리로 모든 테이블 동시 조회
+        results = {}
+        def fetch_user():
+            return supabase.table('user_profile').select('*').eq('id', '00000000-0000-0000-0000-000000000000').execute()
+        def fetch_meals():
+            return supabase.table('meals').select('*').order('date', desc=True).execute()
+        def fetch_growth():
+            return supabase.table('growth').select('*').order('date', desc=True).execute()
+        def fetch_settings():
+            try:
+                return supabase.table('settings').select('*').limit(1).execute()
+            except:
+                return None
+        
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            future_user = executor.submit(fetch_user)
+            future_meals = executor.submit(fetch_meals)
+            future_growth = executor.submit(fetch_growth)
+            future_settings = executor.submit(fetch_settings)
+            
+            user_res = future_user.result(timeout=10)
+            meals_res = future_meals.result(timeout=10)
+            growth_res = future_growth.result(timeout=10)
+            settings_res = future_settings.result(timeout=10)
         
         # 만약 DB가 비어있고 로컬 파일이 있다면 마이그레이션 수행
         if not user_res.data and os.path.exists(DATA_FILE):
             return migrate_local_to_supabase()
-        
-        # 2. 식단 및 성장 기록 가져오기
-        meals_res = supabase.table('meals').select('*').order('date', desc=True).execute()
-        growth_res = supabase.table('growth').select('*').order('date', desc=True).execute()
         
         user_info = user_res.data[0] if user_res.data else {
             "name": "차유나", "months": 12, "likes": [], "dislikes": [], 
@@ -216,24 +269,25 @@ def load_data():
                 "date": str(meal.get('date')),
                 "meal_type": meal.get('meal_type') or meal.get('mealType') or "간식",
                 "menu_name": meal.get('menu_name') or meal.get('menuName') or "기록 없음",
-                "amount": meal.get('amount') or "보통", # Stores preference value
+                "amount": meal.get('amount') or "보통",
                 "calories": float(meal.get('calories') or 0),
                 "carbs": float(meal.get('carbs') or 0),
                 "protein": float(meal.get('protein') or 0),
                 "fat": float(meal.get('fat') or 0)
             })
 
-        # 3. 설정 정보 가져오기 (Supabase에 테이블이 없는 경우 로컬 파일 활용)
+        # 설정 정보
         db_settings = {}
-        try:
-            settings_res = supabase.table('settings').select('*').limit(1).execute()
-            db_settings = settings_res.data[0] if settings_res.data else {}
-        except Exception as e:
-            print(f"Supabase settings 테이블 로드 실패 (로컬 파일 사용 권장): {e}")
+        if settings_res and settings_res.data:
+            db_settings = settings_res.data[0]
+        else:
             if os.path.exists(DATA_FILE):
-                with open(DATA_FILE, 'r', encoding='utf-8') as f:
-                    local_data = json.load(f)
-                    db_settings = local_data.get('settings', {})
+                try:
+                    with open(DATA_FILE, 'r', encoding='utf-8') as f:
+                        local_data = json.load(f)
+                        db_settings = local_data.get('settings', {})
+                except:
+                    pass
         
         # 만약 DB에 API 키가 있다면 환경 변수보다 우선 적용
         global GEMINI_API_KEY
@@ -242,12 +296,16 @@ def load_data():
             GEMINI_API_KEY = db_api_key
             configure_gemini(GEMINI_API_KEY)
 
-        return {
+        result = {
             "user": user_info,
             "meals": normalized_meals,
             "growth": growth_res.data or [],
             "settings": db_settings
         }
+        
+        # 캐시에 저장
+        cache_set('load_data', result)
+        return result
     except Exception as e:
         print(f"Supabase 로드 에러: {e}")
         # 에러 발생 시 로컬 파일 fallback (개발 편의성)
@@ -356,7 +414,52 @@ def index():
 
 @app.route('/api/data', methods=['GET'])
 def get_data():
+    """통합 API - 모든 데이터 + 성장 예측을 한번에 반환"""
     data = load_data()
+    
+    # 성장 예측도 함께 포함 (별도 API 호출 불필요)
+    growth_prediction = None
+    try:
+        growth_list = data.get('growth', [])
+        if growth_list:
+            # 캐시 확인
+            cached_pred = cache_get('growth_prediction')
+            if cached_pred:
+                growth_prediction = cached_pred
+            else:
+                last = growth_list[0]  # desc 정렬이므로 첫번째가 최신
+                h_percentile = last.get('h_percentile', 50)
+                w_percentile = last.get('w_percentile', 50)
+                
+                import math
+                def get_value_from_percentile(percentile, avg, cv):
+                    p = percentile / 100.0
+                    if p <= 0: return avg * (1 - 3*cv)
+                    if p >= 1: return avg * (1 + 3*cv)
+                    c0, c1, c2 = 2.515517, 0.802853, 0.010328
+                    d1, d2, d3 = 1.432788, 0.189269, 0.001308
+                    t = math.sqrt(-2 * math.log(min(p, 1-p)))
+                    z = t - ((c2 * t + c1) * t + c0) / (((d3 * t + d2) * t + d1) * t + 1)
+                    if p < 0.5: z = -z
+                    return round(avg + (z * avg * cv), 1)
+                
+                predictions = []
+                target_ages = [24, 36, 48, 60, 72, 96, 120, 144, 168, 192, 216, 240]
+                for age in target_ages:
+                    lookup_age = min(age, 216)
+                    standard_months = sorted(GIRLS_GROWTH_STANDARD.keys())
+                    closest_m = min(standard_months, key=lambda x: abs(x - lookup_age))
+                    avg_h, avg_w = GIRLS_GROWTH_STANDARD[closest_m]
+                    pred_h = get_value_from_percentile(h_percentile, avg_h, 0.035)
+                    pred_w = get_value_from_percentile(w_percentile, avg_w, 0.11)
+                    predictions.append({"age": age // 12, "months": age, "height": pred_h, "weight": pred_w})
+                
+                growth_prediction = {"status": "success", "predictions": predictions}
+                cache_set('growth_prediction', growth_prediction)
+    except Exception as e:
+        print(f"인라인 성장 예측 에러: {e}")
+    
+    data['growth_prediction'] = growth_prediction
     return jsonify(data)
 
 @app.route('/api/dashboard', methods=['GET'])
@@ -525,6 +628,7 @@ def record_meal():
     
     try:
         supabase.table('meals').insert(new_meal).execute()
+        cache_invalidate('load_data')  # 캐시 무효화
         return jsonify({"status": "success", "message": status_msg, "record": new_meal})
     except Exception as e:
         return jsonify({"status": "error", "message": f"기록 실패: {e}"}), 500
@@ -534,6 +638,7 @@ def delete_meal():
     meal_id = request.json.get('id')
     try:
         res = supabase.table('meals').delete().eq('id', meal_id).execute()
+        cache_invalidate('load_data')  # 캐시 무효화
         if res.data:
             return jsonify({"status": "success", "message": "삭제되었습니다."})
         return jsonify({"status": "error", "message": "삭제할 기록을 찾지 못했습니다."}), 404
@@ -578,6 +683,7 @@ def record_growth():
     
     try:
         supabase.table('growth').insert(new_record).execute()
+        cache_invalidate('load_data', 'growth_prediction')  # 캐시 무효화
         return jsonify({"status": "success", "message": status_msg, "record": new_record})
     except Exception as e:
         return jsonify({"status": "error", "message": f"성장 기록 실패: {e}"}), 500
@@ -587,6 +693,7 @@ def delete_growth():
     record_id = request.json.get('id')
     try:
         res = supabase.table('growth').delete().eq('id', record_id).execute()
+        cache_invalidate('load_data', 'growth_prediction')  # 캐시 무효화
         if res.data:
             return jsonify({"status": "success", "message": "성장 기록이 삭제되었습니다."})
         return jsonify({"status": "error", "message": "삭제할 기록을 찾지 못했습니다."}), 404
@@ -601,6 +708,7 @@ def update_preferences():
             "likes": pref_data.get('likes', []),
             "dislikes": pref_data.get('dislikes', [])
         }).eq('id', '00000000-0000-0000-0000-000000000000').execute()
+        cache_invalidate('load_data')  # 캐시 무효화
         return jsonify({"status": "success", "message": "음식 취향이 저장되었습니다."})
     except Exception as e:
         return jsonify({"status": "error", "message": f"저장 실패: {e}"}), 500
@@ -789,9 +897,27 @@ def get_diaper_logs():
 def delete_diaper():
     record_id = request.json.get('id')
     try:
-        # 삭제 시 재고 복구는 복잡해질 수 있으므로 일단 단순 기록 삭제만 구현 (사용자 요청 시 추가)
+        # 1. 삭제할 기록 조회 (재고 복원을 위해)
+        record_res = supabase.table('diaper_logs').select('*').eq('id', record_id).execute()
+        
+        if not record_res.data:
+            return jsonify({"status": "error", "message": "삭제할 기록을 찾을 수 없습니다."}), 404
+        
+        deleted_record = record_res.data[0]
+        diaper_type = deleted_record.get('diaper_type', 'day')
+        
+        # 2. 기록 삭제
         supabase.table('diaper_logs').delete().eq('id', record_id).execute()
-        return jsonify({"status": "success", "message": "삭제되었습니다."})
+        
+        # 3. 재고 복원 (삭제된 기록의 타입에 맞춰 +1)
+        inventory_key = f"diaper_{diaper_type}"
+        inv_res = supabase.table('inventory').select('*').eq('item_key', inventory_key).execute()
+        
+        if inv_res.data:
+            current_qty = inv_res.data[0]['quantity']
+            supabase.table('inventory').update({"quantity": current_qty + 1}).eq('item_key', inventory_key).execute()
+        
+        return jsonify({"status": "success", "message": "삭제되었습니다. (재고 +1 복원)"})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
