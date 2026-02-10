@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request, jsonify
+from flask_compress import Compress
 import json
 import os
 from datetime import datetime, timedelta
@@ -10,6 +11,7 @@ import google.generativeai as genai
 import base64
 
 app = Flask(__name__)
+Compress(app)  # Gzip 압축 활성화
 
 # Supabase 설정 (환경 변수 우선, 없으면 사용자 제공값 사용)
 SUPABASE_URL = os.environ.get('SUPABASE_URL', 'https://aiqodlsxkckvwxeyvgne.supabase.co')
@@ -356,6 +358,133 @@ def index():
 def get_data():
     data = load_data()
     return jsonify(data)
+
+@app.route('/api/dashboard', methods=['GET'])
+def get_dashboard():
+    """통합 대시보드 API - 단일 호출로 모든 데이터 제공"""
+    try:
+        data = load_data()
+        user = data.get('user', {})
+        meals = data.get('meals', [])
+        growth = data.get('growth', [])
+        
+        # 오늘 날짜 계산
+        now = datetime.now()
+        today = f"{now.year}-{str(now.month).zfill(2)}-{str(now.day).zfill(2)}"
+        today_meals = [m for m in meals if m['date'].startswith(today)]
+        
+        # 영양소 합계 계산
+        totals = {'carbs': 0, 'protein': 0, 'fat': 0, 'calories': 0}
+        for meal in today_meals:
+            totals['carbs'] += meal.get('carbs', 0)
+            totals['protein'] += meal.get('protein', 0)
+            totals['fat'] += meal.get('fat', 0)
+            totals['calories'] += meal.get('calories', 0)
+        
+        # 추천 식단 생성
+        months = user.get('months', 12)
+        likes = user.get('likes', [])
+        dislikes = user.get('dislikes', [])
+        target = user.get('target_nutrition', {"calories": 1000})
+        
+        # 간단한 추천 로직 (기존 /api/recommend와 동일)
+        recommendation = generate_recommendation(months, likes, dislikes, meals, target)
+        
+        # 성장 데이터 (최근 기록)
+        latest_growth = growth[-1] if growth else None
+        
+        return jsonify({
+            'user': user,
+            'today_meals': today_meals,
+            'nutrition_totals': totals,
+            'recommendation': recommendation,
+            'latest_growth': latest_growth,
+            'all_meals': meals[:50],  # 최근 50개만
+            'growth_history': growth[-20:] if len(growth) > 20 else growth  # 최근 20개만
+        })
+    except Exception as e:
+        print(f"Dashboard API 에러: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+def generate_recommendation(months, likes, dislikes, meals, target):
+    """추천 식단 생성 헬퍼 함수"""
+    STAGE_DETAILS = {
+        "early": {
+            "menus": [
+                {"breakfast": "쌀미음", "lunch": "청경채미음", "dinner": "애호박미음", "snack": "사과퓨레"},
+                {"breakfast": "찹쌀미음", "lunch": "감자미음", "dinner": "브로콜리미음", "snack": "배퓨레"},
+            ],
+            "tip": "알레르기 반응을 살피며 새로운 재료를 하나씩 시작해보세요."
+        },
+        "middle": {
+            "menus": [
+                {"breakfast": "소고기 오이죽", "lunch": "닭고기 양파죽", "dinner": "대구살 무죽", "snack": "바나나 요거트"},
+                {"breakfast": "연두부 채소죽", "lunch": "소고기 표고버섯죽", "dinner": "고구마 사과죽", "snack": "아기치즈"},
+            ],
+            "tip": "철분 보충을 위해 매끼 소고기나 닭고기를 포함하는 것이 좋아요."
+        },
+        "late": {
+            "menus": [
+                {"breakfast": "소고기 가지 진밥", "lunch": "대구살 시금치 진밥", "dinner": "닭고기 단호박 진밥", "snack": "삶은 계란"},
+                {"breakfast": "전복 채소 진밥", "lunch": "계란 채소 진밥", "dinner": "소고기 브로콜리 진밥", "snack": "블루베리"},
+            ],
+            "tip": "핑거 푸드를 통해 스스로 먹는 즐거움을 가르쳐줄 시기예요."
+        },
+        "completion": {
+            "menus": [
+                {"breakfast": "해물 볶음밥", "lunch": "소고기 미역국 진밥", "dinner": "두부 스테이크 & 찐 채소", "snack": "찐 감자"},
+                {"breakfast": "닭다리살 채소 볶음밥", "lunch": "대구전 & 시금치 무침", "dinner": "야채 치즈 오므라이스", "snack": "아기용 우유"},
+            ],
+            "tip": "간을 최소화하고 다양한 식감을 경험하게 해주세요."
+        },
+        "toddler": {
+            "menus": [
+                {"breakfast": "불고기 덮밥", "lunch": "곰탕 & 생선구이", "dinner": "닭안심 간장구이 & 밥", "snack": "제철 과일"},
+                {"breakfast": "새우 볶음밥", "lunch": "계란국 & 계란말이", "dinner": "소고기 무국 & 두부조림", "snack": "견과류 한알"},
+            ],
+            "tip": "세 끼 식사와 간식의 영양 밸런스를 맞춰 성장을 도와주세요."
+        }
+    }
+    
+    if months < 7: stage = "early"
+    elif months < 10: stage = "middle"
+    elif months < 13: stage = "late"
+    elif months < 16: stage = "completion"
+    else: stage = "toddler"
+    
+    selected_set = random.choice(STAGE_DETAILS[stage]["menus"]).copy()
+    tip = STAGE_DETAILS[stage]["tip"]
+    
+    # 최근 데이터 분석
+    tendency_msg = "유나의 성장 단계에 딱 맞는 하루 식단을 준비했어요."
+    if meals:
+        try:
+            last_week = datetime.now() - timedelta(days=7)
+            recent_meals = []
+            for m in meals:
+                date_str = m['date'].replace('T', ' ').split('+')[0].split('.')[0]
+                try:
+                    meal_date = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
+                    if meal_date > last_week:
+                        recent_meals.append(m)
+                except:
+                    continue
+            
+            if recent_meals:
+                total_cal = sum(float(m.get('calories', 0)) for m in recent_meals)
+                avg_cal = total_cal / 7
+                cal_rate = (avg_cal / target.get('calories', 1000)) * 100
+                tendency_msg = f"최근 1주일간 유나는 목표 칼로리의 {cal_rate:.1f}%를 섭취 중이에요."
+        except Exception as e:
+            print(f"추천 분석 에러: {e}")
+    
+    return {
+        "recommendation": selected_set,
+        "tip": tip,
+        "tendency": tendency_msg,
+        "months": months,
+        "stage_name": stage
+    }
 
 @app.route('/api/record', methods=['POST'])
 def record_meal():

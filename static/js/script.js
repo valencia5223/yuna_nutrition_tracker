@@ -2,24 +2,23 @@ let nutritionChart;
 let heightChart;
 let weightChart;
 let currentViewDate = new Date();
+let cachedData = null; // 데이터 캐싱
 
 document.addEventListener('DOMContentLoaded', function () {
     console.log("유나의 식단 일기 앱 시작!");
 
+    // 차트 초기화 (빈 차트로 먼저 표시)
     initChart();
-    initGrowthChart(); // 성장 차트 초기화
-    loadGrowthPrediction(); // 미래 성장 예측 로드
+    initGrowthChart();
 
     // AI 사진 분석 초기화
     initAIAnalysis();
     initSettings();
-    initPreferenceEvents(); // 취향 설정 이벤트 리스너 연결
-    loadUserData();
-    loadDashboard();
-    loadRecommendation();
-    renderCalendar();
-    loadGrowthData(); // 성장 데이터 로드
-    setDefaultMealType(); // 현재 시간 기준 기본 식사 시간 설정
+    initPreferenceEvents();
+    setDefaultMealType();
+
+    // 통합 API로 모든 데이터 한번에 로드 (최적화)
+    loadAllDataOptimized();
 
     // 시간대별 기본 식사 시간 자동 설정
     function setDefaultMealType() {
@@ -276,6 +275,186 @@ function initChart() {
             cutout: '70%'
         }
     });
+}
+
+// 통합 데이터 로딩 함수 (최적화)
+async function loadAllDataOptimized() {
+    try {
+        // 로딩 표시 (선택사항)
+        showLoadingState();
+
+        // 통합 API와 개별 API를 병렬로 호출
+        const [dashboardData, growthPrediction] = await Promise.all([
+            fetch('/api/data').then(res => res.json()),
+            fetch('/api/growth/predict').then(res => res.json()).catch(() => null)
+        ]);
+
+        // 캐시에 저장
+        cachedData = dashboardData;
+
+        // 모든 UI 업데이트를 한번에 수행
+        updateAllUI(dashboardData, growthPrediction);
+
+        // 로딩 상태 해제
+        hideLoadingState();
+    } catch (error) {
+        console.error('데이터 로딩 실패:', error);
+        hideLoadingState();
+    }
+}
+
+function updateAllUI(data, growthPrediction) {
+    // 1. 사용자 정보 업데이트
+    updateUserInfo(data.user);
+
+    // 2. 오늘의 식단 및 영양소 차트 업데이트
+    updateTodayMeals(data.meals);
+
+    // 3. 추천 식단 업데이트
+    updateRecommendation(data.user);
+
+    // 4. 캘린더 렌더링
+    renderCalendarOptimized(data.meals);
+
+    // 5. 성장 데이터 업데이트
+    if (data.growth && data.growth.length > 0) {
+        updateGrowthCharts(data.growth);
+    }
+
+    // 6. 성장 예측 업데이트
+    if (growthPrediction && growthPrediction.status === 'success') {
+        renderGrowthPrediction(growthPrediction.predictions);
+    }
+}
+
+function showLoadingState() {
+    // 스켈레톤 UI 표시 (간단한 버전)
+    const mealList = document.getElementById('meal-list');
+    if (mealList) {
+        mealList.innerHTML = '<p class="empty-msg">데이터 불러오는 중...</p>';
+    }
+}
+
+function hideLoadingState() {
+    // 로딩 상태 해제는 데이터 업데이트 시 자동으로 처리됨
+}
+
+function updateUserInfo(user) {
+    if (!user) return;
+
+    document.getElementById('user-months').value = user.months || 12;
+
+    if (user.target_nutrition) {
+        const targetDisplay = document.getElementById('target-calories-display');
+        if (targetDisplay) {
+            targetDisplay.innerText = `권장 칼로리: ${user.target_nutrition.calories} kcal`;
+        }
+    }
+
+    // 디데이 및 상세 연령(개월/일) 계산 및 표시
+    if (user.birth_date) {
+        const birthDate = new Date(user.birth_date);
+        const today = new Date();
+
+        // 1. D-Day 계산
+        const birthDateForDDay = new Date(user.birth_date);
+        birthDateForDDay.setHours(0, 0, 0, 0);
+        const todayForDDay = new Date();
+        todayForDDay.setHours(0, 0, 0, 0);
+        const diffTime = Math.abs(todayForDDay - birthDateForDDay);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+        document.getElementById('d-day-display').innerText = `D+${diffDays}`;
+
+        // 2. 개월/일 계산
+        let years = today.getFullYear() - birthDate.getFullYear();
+        let months = today.getMonth() - birthDate.getMonth();
+        let days = today.getDate() - birthDate.getDate();
+
+        if (days < 0) {
+            months -= 1;
+            const lastMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+            days += lastMonth.getDate();
+        }
+        if (months < 0) {
+            years -= 1;
+            months += 12;
+        }
+
+        const totalMonths = (years * 12) + months;
+        document.getElementById('age-display').innerText = `(${totalMonths}개월 ${days}일)`;
+        document.getElementById('user-months').value = totalMonths;
+
+        // 건강 스케줄 렌더링
+        renderHealthSchedule(user.birth_date);
+    }
+
+    // 취향 데이터 렌더링
+    renderTags('likes-tags', user.likes || [], 'like');
+    renderTags('dislikes-tags', user.dislikes || [], 'dislike');
+}
+
+function updateTodayMeals(meals) {
+    if (!meals) return;
+
+    // 오늘 날짜 필터링
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const todayMeals = meals.filter(m => m.date.startsWith(today));
+
+    // 식사 순서 정의
+    const mealPriority = { '아침': 1, '점심': 2, '저녁': 3, '간식': 4 };
+    todayMeals.sort((a, b) => {
+        const typeA = a.meal_type || a.mealType || '간식';
+        const typeB = b.meal_type || b.mealType || '간식';
+        return (mealPriority[typeA] || 5) - (mealPriority[typeB] || 5);
+    });
+
+    // 영양소 합계 계산
+    let totals = { carbs: 0, protein: 0, fat: 0, calories: 0 };
+    const mealList = document.getElementById('meal-list');
+    mealList.innerHTML = '';
+
+    if (todayMeals.length === 0) {
+        mealList.innerHTML = '<p class="empty-msg">아직 기록이 없어요.</p>';
+    } else {
+        todayMeals.forEach(meal => {
+            totals.carbs += (meal.carbs || 0);
+            totals.protein += (meal.protein || 0);
+            totals.fat += (meal.fat || 0);
+            totals.calories += (meal.calories || 0);
+
+            const mealType = meal.meal_type || meal.mealType || '간식';
+            const menuName = meal.menu_name || meal.menuName || '기록 없음';
+            const typeClassMap = { '아침': 'breakfast', '점심': 'lunch', '저녁': 'dinner', '간식': 'snack' };
+            const typeClass = typeClassMap[mealType] || '';
+
+            const item = document.createElement('div');
+            item.className = `meal-item ${typeClass}`;
+            item.innerHTML = `
+                <div class="info">
+                    <span class="menu">${menuName} <small style="color: #888; font-weight: normal;">(${meal.preference || '보통'})</small></span>
+                    <span class="specs">칼로리: ${meal.calories}kcal | 탄: ${meal.carbs}g 단: ${meal.protein}g 지: ${meal.fat}g</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span class="type ${typeClass}">${mealType}</span>
+                    <button class="delete-btn-mobile" onclick="deleteMeal('${meal.id}')" title="삭제">🗑️</button>
+                </div>
+            `;
+            mealList.appendChild(item);
+        });
+    }
+
+    // 차트 업데이트
+    nutritionChart.data.datasets[0].data = [totals.carbs, totals.protein, totals.fat];
+    nutritionChart.update();
+}
+
+function updateRecommendation(user) {
+    loadRecommendation(); // 기존 함수 재사용
+}
+
+function renderCalendarOptimized(meals) {
+    renderCalendar(); // 기존 함수 재사용 (이미 최적화되어 있음)
 }
 
 function loadDashboard() {
@@ -705,19 +884,7 @@ function loadGrowthData() {
 
             if (history.length === 0) return;
 
-            const labels = history.map(h => h.date.substring(0, 10));
-            const heights = history.map(h => h.height);
-            const weights = history.map(h => h.weight);
-
-            if (heightChart && weightChart) {
-                heightChart.data.labels = labels;
-                heightChart.data.datasets[0].data = heights;
-                heightChart.update();
-
-                weightChart.data.labels = labels;
-                weightChart.data.datasets[0].data = weights;
-                weightChart.update();
-            }
+            updateGrowthCharts(history);
 
             // 마지막 기록으로 상태 메시지 업데이트
             const last = history[history.length - 1];
@@ -728,6 +895,34 @@ function loadGrowthData() {
                 statusEl.innerText = `마지막 기록(${last.months}개월): 키 ${last.height}cm (상위 ${hTop}%) | 몸무게 ${last.weight}kg (상위 ${wTop}%)`;
             }
         });
+}
+
+// 성장 차트 업데이트 함수 (최적화용)
+function updateGrowthCharts(history) {
+    if (!history || history.length === 0) return;
+
+    const labels = history.map(h => h.date.substring(0, 10));
+    const heights = history.map(h => h.height);
+    const weights = history.map(h => h.weight);
+
+    if (heightChart && weightChart) {
+        heightChart.data.labels = labels;
+        heightChart.data.datasets[0].data = heights;
+        heightChart.update();
+
+        weightChart.data.labels = labels;
+        weightChart.data.datasets[0].data = weights;
+        weightChart.update();
+    }
+
+    // 마지막 기록으로 상태 메시지 업데이트
+    const last = history[history.length - 1];
+    const statusEl = document.getElementById('growth-status');
+    if (statusEl && last) {
+        const hTop = Math.round((100 - last.h_percentile) * 10) / 10;
+        const wTop = Math.round((100 - last.w_percentile) * 10) / 10;
+        statusEl.innerText = `마지막 기록(${last.months}개월): 키 ${last.height}cm (상위 ${hTop}%) | 몸무게 ${last.weight}kg (상위 ${wTop}%)`;
+    }
 }
 
 function speak(text) {
