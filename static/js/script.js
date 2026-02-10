@@ -325,6 +325,9 @@ function updateAllUI(data, growthPrediction) {
     if (growthPrediction && growthPrediction.status === 'success') {
         renderGrowthPrediction(growthPrediction.predictions);
     }
+
+    // 7. 수면 분석 업데이트 (생활 기록 탭 활성화 시 또는 전체 갱신 시)
+    loadSleepAnalysis();
 }
 
 function showLoadingState() {
@@ -1288,9 +1291,74 @@ function renderGrowthPrediction(predictions) {
     `).join('');
 }
 
+// 수면 분석 데이터 로드 및 렌더링
+async function loadSleepAnalysis() {
+    const container = document.getElementById('sleep-analysis-content');
+    if (!container) return;
+
+    try {
+        const response = await fetch('/api/sleep/analysis');
+        const data = await response.json();
+
+        if (data.status === 'success' && data.analysis) {
+            const nap = data.analysis.nap;
+            const night = data.analysis.night;
+            const prediction = data.analysis.prediction;
+
+            let html = `<div style="display: flex; flex-direction: column; gap: 8px; text-align: left;">`;
+
+            // 낮잠 통계
+            if (nap) {
+                html += `
+                <div style="background: #fdf2f8; padding: 10px; border-radius: 8px; border: 1px solid #fce7f3;">
+                    <div style="font-weight: bold; color: #d63384; font-size: 0.9rem;">☀️ 평균 낮잠</div>
+                    <div style="font-size: 0.85rem; color: #555;">
+                        시작: ${nap.avg_start} | 평균 ${nap.avg_duration_hours}시간
+                    </div>
+                </div>`;
+            } else {
+                html += `<div style="font-size: 0.85rem; color: #999; padding: 5px;">☀️ 낮잠 데이터가 부족해요.</div>`;
+            }
+
+            // 밤잠 통계
+            if (night) {
+                html += `
+                <div style="background: #eef2ff; padding: 10px; border-radius: 8px; border: 1px solid #e0e7ff;">
+                    <div style="font-weight: bold; color: #4f46e5; font-size: 0.9rem;">🌙 평균 밤잠</div>
+                    <div style="font-size: 0.85rem; color: #555;">
+                        시작: ${night.avg_start} | 평균 ${night.avg_duration_hours}시간
+                    </div>
+                </div>`;
+            } else {
+                html += `<div style="font-size: 0.85rem; color: #999; padding: 5px;">🌙 밤잠 데이터가 부족해요.</div>`;
+            }
+
+            // 예측 정보
+            if (prediction) {
+                html += `
+                <div style="margin-top: 5px; padding: 10px; background: #f0fdf4; border-radius: 8px; border: 1px solid #dcfce7;">
+                    <strong style="color: #16a34a; font-size: 0.9rem;">💡 다음 수면 예측</strong>
+                    <div style="font-size: 0.85rem; color: #333; margin-top: 3px;">${prediction}</div>
+                </div>`;
+            }
+
+            html += `</div>`;
+            container.innerHTML = html;
+        } else {
+            container.innerHTML = `<p style="color: #999; font-size: 0.8rem;">수면 기록이 쌓이면 분석해드려요!</p>`;
+        }
+    } catch (error) {
+        console.error('수면 분석 로드 실패:', error);
+        container.innerHTML = `<p style="color: #ff7675; font-size: 0.8rem;">분석 데이터를 불러올 수 없습니다.</p>`;
+    }
+}
+
 
 const DEVELOPMENTAL_MILESTONES = {
     0: {
+        title: "신생아기 (0~1개월)",
+        desc: "하루 대부분을 자며 보내요. 모유/분유 수유가 주식입니다.",
+        todo: ["BCG 접종", "B형간염 1차"],
         physical: ["고개를 좌우로 움직일 수 있어요.", "소리에 반응하여 얼굴을 쳐다봅니다.", "움직이는 물체를 눈으로 쫓아요."],
         language: ["배고픔, 불편함을 울음으로 표현해요.", "옹알이 전 단계의 소리를 내기 시작합니다."],
         social: ["주양육자의 얼굴과 냄새를 기억해요.", "눈을 맞추려고 노력합니다."],

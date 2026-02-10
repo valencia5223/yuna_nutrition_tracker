@@ -1187,6 +1187,88 @@ def delete_sleep():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
+@app.route('/api/sleep/analysis', methods=['GET'])
+def analyze_sleep():
+    try:
+        # 최근 7일 데이터 조회
+        seven_days_ago = (datetime.utcnow() - timedelta(days=7)).isoformat() + 'Z'
+        res = supabase.table('sleep_logs').select('*')\
+            .gte('start_time', seven_days_ago)\
+            .order('start_time', desc=True).execute()
+        
+        logs = res.data
+        if not logs:
+            return jsonify({"status": "success", "analysis": None})
+
+        # 데이터 분류
+        naps = [l for l in logs if l['type'] == 'nap' and l.get('end_time')]
+        night_sleeps = [l for l in logs if l['type'] == 'night_sleep' and l.get('end_time')]
+
+        def calculate_avg(records):
+            if not records: return None
+            total_duration = 0
+            start_hour_minutes = []
+            
+            for r in records:
+                start_utc = datetime.fromisoformat(r['start_time'].replace('Z', ''))
+                end_utc = datetime.fromisoformat(r['end_time'].replace('Z', ''))
+                
+                # Duration (minutes) - UTC diff is same as KST diff
+                duration = (end_utc - start_utc).total_seconds() / 60
+                total_duration += duration
+                
+                # Start Time (KST 변환)
+                start_kst = start_utc + timedelta(hours=9)
+                start_mins = start_kst.hour * 60 + start_kst.minute
+                start_hour_minutes.append(start_mins)
+            
+            avg_duration = total_duration / len(records)
+            avg_start_mins = sum(start_hour_minutes) / len(records)
+            
+            avg_h = int(avg_start_mins // 60)
+            avg_m = int(avg_start_mins % 60)
+            
+            return {
+                "avg_start": f"{avg_h:02d}:{avg_m:02d}",
+                "avg_duration_min": round(avg_duration),
+                "avg_duration_hours": round(avg_duration / 60, 1)
+            }
+
+        nap_stats = calculate_avg(naps)
+        night_stats = calculate_avg(night_sleeps)
+        
+        # 다음 수면 예측
+        now = datetime.utcnow() # UTC 기준
+        now_kr = now + timedelta(hours=9)
+        current_hour = now_kr.hour
+        
+        prediction = ""
+        
+        if 6 <= current_hour < 18:
+            # 낮 시간 -> 다음은 낮잠 
+            if nap_stats:
+                prediction = f"낮잠 예상: {nap_stats['avg_start']} (약 {nap_stats['avg_duration_hours']}시간)"
+            else:
+                prediction = "낮잠 데이터가 부족합니다."
+        else:
+            # 저녁/밤 시간 -> 다음은 밤잠
+            if night_stats:
+                prediction = f"밤잠 예상: {night_stats['avg_start']} (약 {night_stats['avg_duration_hours']}시간)"
+            else:
+                prediction = "밤잠 데이터가 부족합니다."
+
+        return jsonify({
+            "status": "success",
+            "analysis": {
+                "nap": nap_stats,
+                "night": night_stats,
+                "prediction": prediction
+            }
+        })
+
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 @app.route('/api/inventory', methods=['GET'])
 def get_inventory():
     try:

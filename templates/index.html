@@ -217,41 +217,6 @@
             <section id="life-tracker" class="card tab-life hidden">
                 <h2>유나의 하루 🌿</h2>
 
-                <!-- Inventory Dashboard -->
-                <div class="inventory-dashboard"
-                    style="background: #f8f9fa; padding: 15px; border-radius: 15px; margin-bottom: 25px; border: 1px solid #eee;">
-                    <h3
-                        style="color: #2d3436; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; font-size: 1.1rem;">
-                        📦 기저귀 재고
-                        <button class="btn-small" onclick="openInventoryModal()"
-                            style="background: var(--primary-color);">+ 채워넣기</button>
-                    </h3>
-                    <div class="inventory-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-                        <!-- Day Diaper -->
-                        <div class="inv-item"
-                            style="background: white; padding: 15px; border-radius: 12px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.03); border: 1px solid #f1f1f1;">
-                            <span style="display: block; font-size: 0.9rem; color: #636e72; margin-bottom: 5px;">☀️ 낮
-                                기저귀</span>
-                            <strong id="day-stock"
-                                style="font-size: 1.8rem; color: #0984e3; display: block; line-height: 1;">--</strong>
-                            <div id="day-prediction"
-                                style="font-size: 0.75rem; color: #fd79a8; margin-top: 8px; font-weight: bold;">분석 중...
-                            </div>
-                        </div>
-                        <!-- Night Diaper -->
-                        <div class="inv-item"
-                            style="background: white; padding: 15px; border-radius: 12px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.03); border: 1px solid #f1f1f1;">
-                            <span style="display: block; font-size: 0.9rem; color: #636e72; margin-bottom: 5px;">🌙 밤
-                                기저귀</span>
-                            <strong id="night-stock"
-                                style="font-size: 1.8rem; color: #6c5ce7; display: block; line-height: 1;">--</strong>
-                            <div id="night-prediction"
-                                style="font-size: 0.75rem; color: #fd79a8; margin-top: 8px; font-weight: bold;">분석 중...
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
                 <!-- Diaper Log -->
                 <div class="life-log-section" style="margin-bottom: 30px;">
                     <h3 style="margin-bottom: 15px; font-size: 1.1rem; color: #333;">🧷 기저귀 갈기</h3>
@@ -309,7 +274,7 @@
                 </div>
 
                 <!-- Sleep Log -->
-                <div class="life-log-section">
+                <div class="life-log-section" style="margin-bottom: 30px;">
                     <h3 style="margin-bottom: 15px; font-size: 1.1rem; color: #333;">💤 수면 기록</h3>
                     <div id="sleep-status"
                         style="margin-bottom: 15px; padding: 15px; background: #2d3436; color: white; border-radius: 12px; text-align: center; display: none; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
@@ -337,7 +302,7 @@
                 </div>
 
                 <!-- Timeline -->
-                <div class="timeline-section" style="margin-top: 40px;">
+                <div class="timeline-section" style="margin-top: 40px; margin-bottom: 30px;">
                     <h3
                         style="margin-bottom: 15px; font-size: 1.1rem; color: #333; border-bottom: 2px solid #eee; padding-bottom: 10px;">
                         📅 오늘의 기록</h3>
@@ -345,6 +310,50 @@
                         style="display: flex; flex-direction: column; gap: 12px;">
                         <!-- JS populated -->
                         <p class="empty-msg">오늘의 기록이 없습니다.</p>
+                    </div>
+                </div>
+
+                <!-- 수면 데이터 분석 섹션 (New) -->
+                <div class="card" id="sleep-analysis-card"
+                    style="margin-bottom: 25px; padding: 15px; border-radius: 12px; background: white; border: 1px solid #eee;">
+                    <h3 style="font-size: 1.1rem; color: #333; margin-bottom: 15px;">💤 수면 분석 & 예측</h3>
+                    <div id="sleep-analysis-content" style="text-align: center; font-size: 0.95rem; color: #555;">
+                        <p>데이터를 분석 중입니다...</p>
+                    </div>
+                </div>
+
+                <!-- Inventory Dashboard -->
+                <div class="inventory-dashboard"
+                    style="background: #f8f9fa; padding: 15px; border-radius: 15px; margin-bottom: 25px; border: 1px solid #eee;">
+                    <h3
+                        style="color: #2d3436; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; font-size: 1.1rem;">
+                        📦 기저귀 재고
+                        <button class="btn-small" onclick="openInventoryModal()"
+                            style="background: var(--primary-color);">+ 채워넣기</button>
+                    </h3>
+                    <div class="inventory-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <!-- Day Diaper -->
+                        <div class="inv-item"
+                            style="background: white; padding: 15px; border-radius: 12px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.03); border: 1px solid #f1f1f1;">
+                            <span style="display: block; font-size: 0.9rem; color: #636e72; margin-bottom: 5px;">☀️ 낮
+                                기저귀</span>
+                            <strong id="day-stock"
+                                style="font-size: 1.8rem; color: #0984e3; display: block; line-height: 1;">--</strong>
+                            <div id="day-prediction"
+                                style="font-size: 0.75rem; color: #fd79a8; margin-top: 8px; font-weight: bold;">분석 중...
+                            </div>
+                        </div>
+                        <!-- Night Diaper -->
+                        <div class="inv-item"
+                            style="background: white; padding: 15px; border-radius: 12px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.03); border: 1px solid #f1f1f1;">
+                            <span style="display: block; font-size: 0.9rem; color: #636e72; margin-bottom: 5px;">🌙 밤
+                                기저귀</span>
+                            <strong id="night-stock"
+                                style="font-size: 1.8rem; color: #6c5ce7; display: block; line-height: 1;">--</strong>
+                            <div id="night-prediction"
+                                style="font-size: 0.75rem; color: #fd79a8; margin-top: 8px; font-weight: bold;">분석 중...
+                            </div>
+                        </div>
                     </div>
                 </div>
             </section>
