@@ -917,9 +917,96 @@ def delete_diaper():
             current_qty = inv_res.data[0]['quantity']
             supabase.table('inventory').update({"quantity": current_qty + 1}).eq('item_key', inventory_key).execute()
         
+        cache_invalidate('load_data')  # 캐시 무효화
         return jsonify({"status": "success", "message": "삭제되었습니다. (재고 +1 복원)"})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/quick/diaper/<type>', methods=['GET'])
+def quick_record_diaper_legacy(type):
+    """기존 단축어 호환용 (기본값: 낮 기저귀)"""
+    return quick_record_diaper_detail('day', type)
+
+@app.route('/quick/diaper/<dtype>/<atype>', methods=['GET'])
+def quick_record_diaper_detail(dtype, atype):
+    """URL 접속만으로 기저귀 기록 (GET 요청) - 바로가기 버튼용
+    dtype: day, night
+    atype: pee, poop
+    """
+    if dtype not in ['day', 'night'] or atype not in ['pee', 'poop']:
+        return "잘못된 요청입니다. (예: /quick/diaper/day/poop)", 400
+    
+    try:
+        # 시간 설정 (현재 시간)
+        now_iso = datetime.utcnow().isoformat() + 'Z'
+        
+        # 1. 기록 저장
+        new_record = {
+            "id": str(uuid.uuid4()),
+            "date": now_iso,
+            "type": atype,
+            "diaper_type": dtype, 
+            "memo": "퀵 바로가기 기록"
+        }
+        supabase.table('diaper_logs').insert(new_record).execute()
+        
+        # 2. 재고 차감 (선택된 기저귀 타입 기준)
+        inventory_key = f"diaper_{dtype}"
+        inv_res = supabase.table('inventory').select('*').eq('item_key', inventory_key).execute()
+        if inv_res.data:
+            current_qty = inv_res.data[0]['quantity']
+            supabase.table('inventory').update({"quantity": max(0, current_qty - 1)}).eq('item_key', inventory_key).execute()
+            
+        cache_invalidate('load_data')
+        
+        # 3. 사용자 피드백 페이지 (자동 리다이렉트)
+        type_kr = "소변" if atype == "pee" else "대변"
+        dtype_kr = "낮" if dtype == "day" else "밤"
+        
+        bg_color = '#e1f5fe' if atype == 'pee' else '#fff3e0'
+        if dtype == 'night':
+            bg_color = '#e8eaf6' if atype == 'pee' else '#efebe9' # 밤일 때 조금 더 어둡거나 다른 톤
+            
+        html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>{dtype_kr} 기저귀 {type_kr} 기록!</title>
+            <style>
+                body {{
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    height: 100vh;
+                    margin: 0;
+                    background: {bg_color};
+                    font-family: sans-serif;
+                    text-align: center;
+                }}
+                .icon {{ font-size: 5rem; margin-bottom: 20px; animation: pop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }}
+                h1 {{ color: #333; margin-bottom: 10px; }}
+                p {{ color: #666; }}
+                @keyframes pop {{ from {{ transform: scale(0); }} to {{ transform: scale(1); }} }}
+            </style>
+            <script>
+                setTimeout(function() {{
+                    window.location.href = '/';
+                }}, 1500); // 1.5초 후 메인으로 이동
+            </script>
+        </head>
+        <body>
+            <div class="icon">{'💧' if atype == 'pee' else '💩'}</div>
+            <h1>{dtype_kr} 기저귀 {type_kr} 기록!</h1>
+            <p>잠시 후 메인 화면으로 이동합니다...</p>
+        </body>
+        </html>
+        """
+        return html
+    except Exception as e:
+        return f"기록 실패: {e}", 500
 
 @app.route('/api/sleep', methods=['POST'])
 def record_sleep():
