@@ -538,6 +538,45 @@
         </div>
     </div>
 
+    <!-- Time Edit Modal -->
+    <div id="record-edit-modal" class="modal">
+        <div class="modal-content" style="max-width: 400px; border-radius: 25px; padding: 30px;">
+            <div style="text-align: center; margin-bottom: 25px;">
+                <div style="font-size: 3rem; margin-bottom: 15px;">🕒</div>
+                <h3 style="font-family: 'Jua', sans-serif; font-size: 1.6rem; color: #333; margin-bottom: 10px;">기록 시간
+                    수정</h3>
+                <p style="color: #888; font-size: 0.9rem;">활동이 발생한 정확한 시간을 선택해주세요.</p>
+            </div>
+
+            <div style="margin-bottom: 25px;">
+                <label style="display:block; margin-bottom:10px; font-weight:bold; color:#555; font-size: 0.95rem;">수정할
+                    시간</label>
+                <input type="datetime-local" id="edit-record-datetime"
+                    style="width: 100%; padding: 15px; border: 2px solid #f1f1f1; border-radius: 15px; font-size: 1.1rem; color: #333; outline: none; transition: border-color 0.3s; margin-bottom: 15px;">
+
+                <div class="time-adjust-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;">
+                    <button type="button" onclick="adjustEditTime(-60)" class="btn-adjust-quick">-1h</button>
+                    <button type="button" onclick="adjustEditTime(-10)" class="btn-adjust-quick">-10m</button>
+                    <button type="button" onclick="adjustEditTime(-1)" class="btn-adjust-quick">-1m</button>
+                    <button type="button" onclick="adjustEditTime(1)" class="btn-adjust-quick">+1m</button>
+                    <button type="button" onclick="adjustEditTime(10)" class="btn-adjust-quick">+10m</button>
+                    <button type="button" onclick="adjustEditTime(60)" class="btn-adjust-quick">+1h</button>
+                </div>
+
+                <input type="hidden" id="edit-record-id">
+                <input type="hidden" id="edit-record-category">
+            </div>
+
+            <div style="display: flex; gap: 12px; margin-top: 10px;">
+                <button onclick="closeEditModal()"
+                    style="flex: 1; padding: 15px; border: none; border-radius: 15px; background: #f1f2f6; color: #57606f; font-weight: bold; cursor: pointer; transition: all 0.3s;">취소</button>
+                <button onclick="submitEditTime()"
+                    style="flex: 2; padding: 15px; border: none; border-radius: 15px; background: linear-gradient(135deg, #a29bfe, #6c5ce7); color: white; font-weight: bold; cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 15px rgba(108, 92, 231, 0.2);">변경
+                    저장</button>
+            </div>
+        </div>
+    </div>
+
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
 </body>
 

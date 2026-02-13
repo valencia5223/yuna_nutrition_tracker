@@ -620,7 +620,7 @@ def record_meal():
 
     new_meal = {
         "id": str(uuid.uuid4()),
-        "date": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        "date": datetime.utcnow().isoformat() + 'Z',
         "meal_type": meal_data.get('mealType') or meal_data.get('meal_type') or "간식",
         "menu_name": menu_name,
         "amount": preference, # UI preference value stored in DB amount column
@@ -686,7 +686,7 @@ def record_growth():
     
     new_record = {
         "id": str(uuid.uuid4()),
-        "date": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        "date": datetime.utcnow().isoformat() + 'Z',
         "months": months,
         "height": height,
         "weight": weight,
@@ -1413,6 +1413,83 @@ def update_inventory_settings():
         cache_invalidate('load_data')
         return jsonify({"status": "success", "message": "기저귀 팩 설정이 저장되었습니다."})
     except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/timeline', methods=['GET'])
+def get_timeline():
+    """특정 날짜의 모든 기록(식단, 기저귀, 수면)을 통합 조회합니다."""
+    date_str = request.args.get('date') # YYYY-MM-DD
+    if not date_str:
+        return jsonify({"status": "error", "message": "날짜가 지정되지 않았습니다."}), 400
+        
+    try:
+        # 00:00:00 ~ 23:59:59 범위 설정 (UTC 기준 검색을 위해 ISO 형식 준비)
+        start_time = f"{date_str}T00:00:00Z"
+        end_time = f"{date_str}T23:59:59Z"
+        
+        # 병렬 쿼리 실행
+        def fetch_meals():
+            return supabase.table('meals').select('*').gte('date', start_time).lte('date', end_time).execute()
+        def fetch_diapers():
+            return supabase.table('diaper_logs').select('*').gte('date', start_time).lte('date', end_time).execute()
+        def fetch_sleeps():
+            # 수면은 시작 시간 기준으로 조회
+            return supabase.table('sleep_logs').select('*').gte('start_time', start_time).lte('start_time', end_time).execute()
+            
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            futures = {
+                'meals': executor.submit(fetch_meals),
+                'diapers': executor.submit(fetch_diapers),
+                'sleeps': executor.submit(fetch_sleeps)
+            }
+            
+            results = {k: f.result().data for k, f in futures.items()}
+            
+        # 데이터 병합 및 규격화
+        combined = []
+        for m in results['meals']:
+            combined.append({**m, "category": "meal", "date": m['date']})
+        for d in results['diapers']:
+            combined.append({**d, "category": "diaper", "date": d['date']})
+        for s in results['sleeps']:
+            combined.append({**s, "category": "sleep", "date": s['start_time']})
+            
+        # 공통 정렬 (오름차순: 오전 -> 오후)
+        combined.sort(key=lambda x: x['date'])
+        
+        return jsonify({"status": "success", "logs": combined})
+    except Exception as e:
+        print(f"Timeline 조회 에러: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/records/update-time', methods=['POST'])
+def update_record_time():
+    """기록의 시간을 수정합니다."""
+    data = request.json
+    category = data.get('category')
+    record_id = data.get('id')
+    new_date = data.get('new_date') # ISO-8601 string with 'Z'
+    
+    if not all([category, record_id, new_date]):
+        return jsonify({"status": "error", "message": "필수 정보가 누락되었습니다."}), 400
+        
+    try:
+        table_map = {
+            'meal': ('meals', 'date'),
+            'diaper': ('diaper_logs', 'date'),
+            'sleep': ('sleep_logs', 'start_time')
+        }
+        
+        if category not in table_map:
+            return jsonify({"status": "error", "message": "잘못된 카테고리입니다."}), 400
+            
+        table_name, col_name = table_map[category]
+        supabase.table(table_name).update({col_name: new_date}).eq('id', record_id).execute()
+        
+        cache_invalidate('load_data')
+        return jsonify({"status": "success", "message": "시간이 수정되었습니다."})
+    except Exception as e:
+        print(f"시간 수정 에러: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/recommend', methods=['GET'])

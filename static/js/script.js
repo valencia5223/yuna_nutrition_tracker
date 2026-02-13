@@ -465,10 +465,11 @@ function updateUserInfo(user) {
 function updateTodayMeals(meals) {
     if (!meals) return;
 
-    // 오늘 날짜 필터링
     const now = new Date();
-    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    const todayMeals = meals.filter(m => m.date.startsWith(today));
+    const todayMeals = meals.filter(m => {
+        const mealDate = new Date(m.date);
+        return mealDate.toDateString() === now.toDateString();
+    });
 
     // 식사 순서 정의
     const mealPriority = { '아침': 1, '점심': 2, '저녁': 3, '간식': 4 };
@@ -538,10 +539,11 @@ function loadDashboard() {
                 }
             }
 
-            // 로컬 날짜 기준으로 오늘 날짜 필터링 (ISO는 UTC 기준이라 시차 문제 발생 가능)
             const now = new Date();
-            const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-            const todayMeals = meals.filter(m => m.date.startsWith(today));
+            const todayMeals = meals.filter(m => {
+                const mealDate = new Date(m.date);
+                return mealDate.toDateString() === now.toDateString();
+            });
 
             // 식사 순서 정의 (아침 -> 점심 -> 저녁 -> 간식)
             const mealPriority = { '아침': 1, '점심': 2, '저녁': 3, '간식': 4 };
@@ -661,8 +663,10 @@ function renderCalendar() {
             // 날짜 채우기
             const today = new Date();
             for (let d = 1; d <= lastDate; d++) {
-                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-                const dayMeals = meals.filter(m => m.date.startsWith(dateStr));
+                const dayMeals = meals.filter(m => {
+                    const mealDate = new Date(m.date);
+                    return mealDate.toDateString() === new Date(year, month, d).toDateString();
+                });
 
                 const cell = document.createElement('div');
                 cell.className = 'calendar-day';
@@ -1519,49 +1523,24 @@ function loadLifeData() {
             }
         });
 
-    // 2. 타임라인 데이터 로드 (기저귀 + 수면 + 식단)
-    Promise.all([
-        fetch('/api/diaper').then(res => res.json()),
-        fetch('/api/sleep').then(res => res.json()),
-        fetch('/api/meals').then(res => res.json())
-    ]).then(([diaperData, sleepData, mealData]) => {
-        let logs = [];
-        if (diaperData.status === 'success') {
-            logs = logs.concat(diaperData.logs.map(log => ({ ...log, category: 'diaper' })));
-        }
-        if (sleepData.status === 'success') {
-            logs = logs.concat(sleepData.logs.map(log => ({
-                ...log,
-                category: 'sleep',
-                date: log.start_time, // 타임라인 정렬용
-            })));
-        }
-        if (mealData.status === 'success') {
-            logs = logs.concat(mealData.meals.map(log => ({
-                ...log,
-                category: 'meal',
-                date: log.date, // 이미 date 필드 있음
-            })));
-        }
+    // 2. 통합 타임라인 데이터 로드 (서버 사이드 필터링 및 병렬 조회)
+    const y = currentLifeDate.getFullYear();
+    const m = String(currentLifeDate.getMonth() + 1).padStart(2, '0');
+    const d = String(currentLifeDate.getDate()).padStart(2, '0');
+    const dateStr = `${y}-${m}-${d}`;
 
-        // 선택된 날짜(currentLifeDate)로 필터링
-        const targetDateStr = currentLifeDate.toDateString();
-        logs = logs.filter(log => {
-            const logDate = new Date(log.date);
-            return logDate.toDateString() === targetDateStr;
-        });
+    fetch(`/api/timeline?date=${dateStr}`)
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                renderTimeline(data.logs);
 
-        // 최신순 정렬 (동일 날짜 내 시간순)
-        logs.sort((a, b) => new Date(b.date) - new Date(a.date));
-
-        renderTimeline(logs);
-
-        // 수면 상태 확인
-        if (sleepData.status === 'success') {
-            const activeSleep = sleepData.logs.find(log => log.end_time === null);
-            updateSleepStatus(activeSleep);
-        }
-    });
+                // 수면 상태 확인 (진행 중인 수면 찾기)
+                const activeSleep = data.logs.find(log => log.category === 'sleep' && log.end_time === null);
+                updateSleepStatus(activeSleep);
+            }
+        })
+        .catch(err => console.error('Timeline 로드 실패:', err));
 }
 
 function renderInventory(inventory, analysis) {
@@ -1643,7 +1622,10 @@ function renderTimeline(logs) {
                         <div style="font-size: 0.8rem; color: #aaa;">${dateStr} ${timeStr}</div>
                     </div>
                 </div>
-                <button class="delete-btn-mobile" onclick="deleteLifeLog('${log.id}', 'diaper')" title="삭제">🗑️</button>
+                <div style="display: flex; gap: 5px;">
+                    <button class="edit-btn-mobile" onclick="editRecordTime('${log.id}', 'diaper', '${log.date}')" title="시간 수정">🕒</button>
+                    <button class="delete-btn-mobile" onclick="deleteLifeLog('${log.id}', 'diaper')" title="삭제" style="background: #fab1a0; color: white; border: none;">🗑️</button>
+                </div>
             `;
         } else if (log.category === 'sleep') {
             const isNap = log.type === 'nap';
@@ -1671,7 +1653,10 @@ function renderTimeline(logs) {
                         <div style="font-size: 0.8rem; color: #fd79a8;">${durationStr}</div>
                     </div>
                 </div>
-                <button class="delete-btn-mobile" onclick="deleteLifeLog('${log.id}', 'sleep')" title="삭제">🗑️</button>
+                <div style="display: flex; gap: 5px;">
+                    <button class="edit-btn-mobile" onclick="editRecordTime('${log.id}', 'sleep', '${log.start_time || log.date}')" title="시간 수정">🕒</button>
+                    <button class="delete-btn-mobile" onclick="deleteLifeLog('${log.id}', 'sleep')" title="삭제" style="background: #fab1a0; color: white; border: none;">🗑️</button>
+                </div>
             `;
         } else if (log.category === 'meal') {
             const mealType = log.meal_type || '식사';
@@ -1693,7 +1678,10 @@ function renderTimeline(logs) {
                         <div style="font-size: 0.8rem; color: #55efc4;">${log.calories ? log.calories + 'kcal' : ''}</div>
                     </div>
                 </div>
-                <button class="delete-btn-mobile" onclick="deleteLifeLog('${log.id}', 'meal')" title="삭제">🗑️</button>
+                <div style="display: flex; gap: 5px;">
+                    <button class="edit-btn-mobile" onclick="editRecordTime('${log.id}', 'meal', '${log.date}')" title="시간 수정">🕒</button>
+                    <button class="delete-btn-mobile" onclick="deleteLifeLog('${log.id}', 'meal')" title="삭제" style="background: #fab1a0; color: white; border: none;">🗑️</button>
+                </div>
             `;
         }
 
@@ -1942,4 +1930,105 @@ function endSleep() {
                 loadLifeData();
             }
         });
+}
+
+function editRecordTime(id, category, currentIso) {
+    const modal = document.getElementById('record-edit-modal');
+    const input = document.getElementById('edit-record-datetime');
+    const idInput = document.getElementById('edit-record-id');
+    const catInput = document.getElementById('edit-record-category');
+
+    if (!modal || !input) return;
+
+    // KST로 변환하여 브라우저 datetime-local 형식(YYYY-MM-DDTHH:mm)으로 준비
+    const date = new Date(currentIso);
+    const offset = date.getTimezoneOffset() * 60000;
+    const localIso = new Date(date.getTime() - offset).toISOString().slice(0, 16);
+
+    // 값 세팅
+    input.value = localIso;
+    idInput.value = id;
+    catInput.value = category;
+
+    // 모달 열기
+    modal.classList.add('active');
+}
+
+function closeEditModal() {
+    const modal = document.getElementById('record-edit-modal');
+    if (modal) modal.classList.remove('active');
+}
+
+function submitEditTime() {
+    const id = document.getElementById('edit-record-id').value;
+    const category = document.getElementById('edit-record-category').value;
+    const newTimeStr = document.getElementById('edit-record-datetime').value;
+
+    if (!newTimeStr) {
+        alert("시간을 선택해주세요.");
+        return;
+    }
+
+    const newDate = new Date(newTimeStr);
+    if (isNaN(newDate.getTime())) {
+        alert("올바르지 않은 시간 형식입니다.");
+        return;
+    }
+
+    const updateIso = newDate.toISOString();
+
+    const confirmBtn = document.querySelector('#record-edit-modal button[onclick="submitEditTime()"]');
+    if (confirmBtn) {
+        confirmBtn.innerText = "저장 중...";
+        confirmBtn.disabled = true;
+    }
+
+    fetch('/api/records/update-time', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            id: id,
+            category: category,
+            new_date: updateIso
+        })
+    })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                closeEditModal();
+                loadLifeData();
+                loadDashboard();
+            } else {
+                alert("수정 실패: " + data.message);
+            }
+        })
+        .catch(err => {
+            alert("통신 에러: " + err);
+        })
+        .finally(() => {
+            if (confirmBtn) {
+                confirmBtn.innerText = "변경 저장";
+                confirmBtn.disabled = false;
+            }
+        });
+}
+
+/**
+ * 시간을 분 단위로 조정합니다 (모바일용 퀵 버튼)
+ */
+function adjustEditTime(minutes) {
+    const input = document.getElementById('edit-record-datetime');
+    if (!input || !input.value) return;
+
+    const currentDate = new Date(input.value);
+    currentDate.setMinutes(currentDate.getMinutes() + minutes);
+
+    // 다시 datetime-local 포맷으로 변환 (YYYY-MM-DDTHH:mm)
+    const y = currentDate.getFullYear();
+    const mo = String(currentDate.getMonth() + 1).padStart(2, '0');
+    const d = String(currentDate.getDate()).padStart(2, '0');
+    const h = String(currentDate.getHours()).padStart(2, '0');
+    const mi = String(currentDate.getMinutes()).padStart(2, '0');
+
+    input.value = `${y}-${mo}-${d}T${h}:${mi}`;
 }
