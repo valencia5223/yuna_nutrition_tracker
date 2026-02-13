@@ -2,6 +2,7 @@ let nutritionChart;
 let heightChart;
 let weightChart;
 let currentViewDate = new Date();
+let currentLifeDate = new Date(); // 생활기록 탭용 날짜
 let cachedData = null; // 데이터 캐싱
 
 document.addEventListener('DOMContentLoaded', function () {
@@ -233,6 +234,55 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
     });
+
+    // 생활기록 날짜 이동 제어
+    const prevLifeDayBtn = document.getElementById('prevLifeDay');
+    const nextLifeDayBtn = document.getElementById('nextLifeDay');
+    const resetLifeDayBtn = document.getElementById('resetLifeDay');
+
+    if (prevLifeDayBtn) {
+        prevLifeDayBtn.addEventListener('click', () => {
+            currentLifeDate.setDate(currentLifeDate.getDate() - 1);
+            updateLifeDateDisplay();
+            loadLifeData();
+        });
+    }
+
+    if (nextLifeDayBtn) {
+        nextLifeDayBtn.addEventListener('click', () => {
+            currentLifeDate.setDate(currentLifeDate.getDate() + 1);
+            updateLifeDateDisplay();
+            loadLifeData();
+        });
+    }
+
+    if (resetLifeDayBtn) {
+        resetLifeDayBtn.addEventListener('click', () => {
+            currentLifeDate = new Date();
+            updateLifeDateDisplay();
+            loadLifeData();
+        });
+    }
+
+    function updateLifeDateDisplay() {
+        const display = document.getElementById('currentLifeDateDisplay');
+        const resetBtn = document.getElementById('resetLifeDay');
+        if (!display) return;
+
+        const today = new Date();
+        const isToday = currentLifeDate.toDateString() === today.toDateString();
+
+        if (isToday) {
+            display.innerText = "오늘";
+            if (resetBtn) resetBtn.style.display = 'none';
+        } else {
+            const y = currentLifeDate.getFullYear();
+            const m = currentLifeDate.getMonth() + 1;
+            const d = currentLifeDate.getDate();
+            display.innerText = `${m}월 ${d}일`;
+            if (resetBtn) resetBtn.style.display = 'inline-block';
+        }
+    }
 });
 
 function deleteGrowthRecord(id) {
@@ -330,6 +380,7 @@ function updateAllUI(data, growthPrediction) {
     loadSleepAnalysis();
 }
 
+
 function showLoadingState() {
     // 스켈레톤 UI 표시
     const mealList = document.getElementById('meal-list');
@@ -401,8 +452,9 @@ function updateUserInfo(user) {
         document.getElementById('age-display').innerText = `(${totalMonths}개월 ${days}일)`;
         document.getElementById('user-months').value = totalMonths;
 
-        // 건강 스케줄 렌더링
-        renderHealthSchedule(user.birth_date);
+        // 건강 스케줄 렌더링 (설정 데이터 포함)
+        const completedVaccines = (cachedData && cachedData.settings) ? (cachedData.settings.completed_vaccinations || []) : [];
+        renderHealthSchedule(user.birth_date, completedVaccines);
     }
 
     // 취향 데이터 렌더링
@@ -893,8 +945,8 @@ function renderGrowthList(history) {
         return;
     }
 
-    // 최신순으로 표시하기 위해 배열 복사 후 reverse
-    const sortedHistory = [...history].reverse();
+    // 최신순으로 표시 (API가 이미 최신순으로 줄 것이므로 reverse() 제거 또는 확인)
+    const sortedHistory = history;
     historyList.innerHTML = sortedHistory.map(h => `
         <div class="growth-history-item">
             <div class="info">
@@ -912,9 +964,11 @@ function renderGrowthList(history) {
 function updateGrowthCharts(history) {
     if (!history || history.length === 0) return;
 
-    const labels = history.map(h => h.date.substring(0, 10));
-    const heights = history.map(h => h.height);
-    const weights = history.map(h => h.weight);
+    // 차트용으로는 오래된 순서대로 정렬된 데이터가 필요함
+    const chartData = [...history].reverse();
+    const labels = chartData.map(h => h.date.substring(0, 10));
+    const heights = chartData.map(h => h.height);
+    const weights = chartData.map(h => h.weight);
 
     if (heightChart && weightChart) {
         heightChart.data.labels = labels;
@@ -926,8 +980,8 @@ function updateGrowthCharts(history) {
         weightChart.update();
     }
 
-    // 마지막 기록으로 상태 메시지 업데이트
-    const last = history[history.length - 1];
+    // 마지막 기록으로 상태 메시지 업데이트 (API가 내림차순 정렬해주므로 history[0]이 최신)
+    const last = history[0];
     const statusEl = document.getElementById('growth-status');
     if (statusEl && last) {
         const hTop = Math.round((100 - last.h_percentile) * 10) / 10;
@@ -1003,12 +1057,9 @@ const HEALTH_SCHEDULE = [
     { type: '접종', title: 'A형 간염 (2차)', start: 540, end: 1095, period: '1차 접종 6~12개월 후' }
 ];
 
-function renderHealthSchedule(birthDateStr) {
-    console.log("건강 스케줄 렌더링 시작. 생일:", birthDateStr);
-    if (!birthDateStr) {
-        console.warn("생일 데이터가 없어 스케줄을 계산할 수 없습니다.");
-        return;
-    }
+function renderHealthSchedule(birthDateStr, completedVaccines = []) {
+    console.log("건강 스케줄 렌더링 시작. 완료 목록:", completedVaccines);
+    if (!birthDateStr) return;
 
     const birthDate = new Date(birthDateStr);
     birthDate.setHours(0, 0, 0, 0);
@@ -1021,64 +1072,97 @@ function renderHealthSchedule(birthDateStr) {
     const todayTasksContainer = document.getElementById('today-health-tasks');
     const fullScheduleList = document.getElementById('full-schedule-list');
 
-    if (!todayTasksContainer || !fullScheduleList) {
-        console.error("건강 스케줄 컨테이너를 찾을 수 없습니다! HTML 구조를 확인하세요.");
-        return;
-    }
-    console.log("컨테이너 확인 완료. 루프 시작...");
+    if (!todayTasksContainer || !fullScheduleList) return;
 
     fullScheduleList.innerHTML = '';
     let todayTasksHtml = '';
 
     HEALTH_SCHEDULE.forEach(item => {
+        const isDone = completedVaccines.includes(item.title);
         let status = 'future';
         let statusText = '기한 전';
         let statusClass = 'future';
 
-        if (diffDays >= item.start && diffDays <= item.end) {
+        if (isDone) {
+            status = 'completed-done';
+            statusText = '접종 완료';
+            statusClass = 'done';
+        } else if (diffDays >= item.start && diffDays <= item.end) {
             status = 'today';
             statusText = '진행 중';
             statusClass = 'today';
         } else if (diffDays > item.end) {
-            status = 'completed';
-            statusText = '완료 기한 지남';
-            statusClass = 'done';
+            status = 'overdue';
+            statusText = '기한 지남';
+            statusClass = 'overdue';
         }
 
         const startDate = new Date(birthDate);
         startDate.setDate(birthDate.getDate() + item.start);
         const endDate = new Date(birthDate);
         endDate.setDate(birthDate.getDate() + item.end);
+
+        // D-Day 계산 (기한 전이거나 진행 중일 때)
+        let dDayText = "";
+        if (!isDone) {
+            const daysToStart = item.start - diffDays;
+            if (daysToStart > 0) dDayText = `<span style="color: #6c5ce7; font-weight: bold; margin-left: 5px;">D-${daysToStart}</span>`;
+            else if (diffDays <= item.end) dDayText = `<span style="color: #e84393; font-weight: bold; margin-left: 5px;">진행중</span>`;
+        }
+
         const dateRangeStr = `${startDate.getFullYear()}.${String(startDate.getMonth() + 1).padStart(2, '0')}.${String(startDate.getDate()).padStart(2, '0')} ~ ${endDate.getFullYear()}.${String(endDate.getMonth() + 1).padStart(2, '0')}.${String(endDate.getDate()).padStart(2, '0')}`;
 
         const itemHtml = `
-            <div class="schedule-item ${status}">
-                <div class="info">
-                    <span class="title">[${item.type}] ${item.title}</span>
-                    <span class="period">${item.period} <small style="color: #00b894; margin-left:10px;">(${dateRangeStr})</small></span>
+            <div class="schedule-item ${status}" style="${isDone ? 'opacity: 0.6; background: #f9f9f9;' : ''}">
+                <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
+                    <input type="checkbox" id="chk-${item.title}" ${isDone ? 'checked' : ''} 
+                        onchange="toggleVaccination('${item.title}')" 
+                        style="width: 20px; height: 20px; cursor: pointer; accent-color: var(--primary-color);">
+                    <div class="info">
+                        <span class="title" style="${isDone ? 'text-decoration: line-through; color: #aaa;' : 'font-weight: bold;'}">[${item.type}] ${item.title} ${dDayText}</span>
+                        <span class="period" style="font-size: 0.8rem; color: #888;">${item.period} <small>(${dateRangeStr})</small></span>
+                    </div>
                 </div>
                 <span class="status-badge ${statusClass}">${statusText}</span>
             </div>
         `;
 
-        // 전체 리스트 (완료/미래/오늘 모두 포함)
         fullScheduleList.innerHTML += itemHtml;
 
-        // 상단 노출은 오직 "진행 중(today)" 뿐
+        // 메인 섹션에는 '진행 중'인 항목만 표시 (기한 진함은 숨김)
         if (status === 'today') {
             todayTasksHtml += itemHtml;
         }
     });
 
-    if (todayTasksHtml) {
-        todayTasksContainer.innerHTML = todayTasksHtml;
-    } else {
-        todayTasksContainer.innerHTML = `
-            <div style="text-align: center; padding: 10px; color: #888;">
-                <p style="font-size: 0.95rem;">💡 현재 진행 중인 일정이 없습니다.</p>
-                <p style="font-size: 0.8rem;">전체 일정을 통해 다가올 접종이나 지난 검진을 확인하세요.</p>
-            </div>
-        `;
+    todayTasksContainer.innerHTML = todayTasksHtml || `
+        <div style="text-align: center; padding: 10px; color: #888;">
+            <p style="font-size: 0.95rem;">💡 현재 진행 중인 일정이 없습니다.</p>
+        </div>
+    `;
+}
+
+/**
+ * 예방접종 항목의 완료 상태를 토글합니다.
+ */
+async function toggleVaccination(title) {
+    try {
+        const response = await fetch('/api/vaccinations/toggle', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: title })
+        });
+        const data = await response.json();
+
+        if (data.status === 'success') {
+            // 성공 시 전체 데이터 다시 로드하여 UI 갱신
+            loadAllDataOptimized();
+        } else {
+            alert('상태 변경에 실패했습니다.');
+        }
+    } catch (error) {
+        console.error('Vaccination toggle error:', error);
+        alert('서버와 통신 중 에러가 발생했습니다.');
     }
 }
 function initAIAnalysis() {
@@ -1303,43 +1387,56 @@ async function loadSleepAnalysis() {
         if (data.status === 'success' && data.analysis) {
             const nap = data.analysis.nap;
             const night = data.analysis.night;
-            const prediction = data.analysis.prediction;
+            const nextPrediction = data.analysis.next_prediction; // 'nap' or 'night'
 
             let html = `<div style="display: flex; flex-direction: column; gap: 8px; text-align: left;">`;
 
             // 낮잠 통계
+            const napStyle = nextPrediction === 'nap'
+                ? "background: #fdf2f8; border: 2px solid #ed4c67; box-shadow: 0 0 10px rgba(237, 76, 103, 0.2);"
+                : "background: #fff; border: 1px solid #f1f1f1; opacity: 0.8;";
+
+            const napTitleStyle = nextPrediction === 'nap'
+                ? "font-weight: bold; color: #d63384; font-size: 0.95rem;"
+                : "font-weight: bold; color: #888; font-size: 0.9rem;";
+
             if (nap) {
                 html += `
-                <div style="background: #fdf2f8; padding: 10px; border-radius: 8px; border: 1px solid #fce7f3;">
-                    <div style="font-weight: bold; color: #d63384; font-size: 0.9rem;">☀️ 평균 낮잠</div>
-                    <div style="font-size: 0.85rem; color: #555;">
-                        시작: ${nap.avg_start} | 평균 ${nap.avg_duration_hours}시간
+                <div style="${napStyle} padding: 12px; border-radius: 12px; transition: all 0.3s;">
+                    <div style="${napTitleStyle} display: flex; justify-content: space-between; align-items: center;">
+                        <span>☀️ 평균 낮잠 ${nextPrediction === 'nap' ? '<span style="font-size:0.7rem; background:#ed4c67; color:white; padding:2px 6px; border-radius:10px; margin-left:5px;">NEXT</span>' : ''}</span>
+                        <span style="font-size: 0.8rem; color: #555;">약 ${nap.avg_duration_hours}시간</span>
+                    </div>
+                    <div style="font-size: 1.1rem; color: #333; margin-top: 5px; font-weight: bold;">
+                        ${nap.avg_start} ~ ${nap.avg_end}
                     </div>
                 </div>`;
             } else {
-                html += `<div style="font-size: 0.85rem; color: #999; padding: 5px;">☀️ 낮잠 데이터가 부족해요.</div>`;
+                html += `<div style="${napStyle} padding: 10px; border-radius: 12px; color: #999; font-size: 0.85rem;">☀️ 낮잠 데이터가 부족해요.</div>`;
             }
 
             // 밤잠 통계
+            const nightStyle = nextPrediction === 'night'
+                ? "background: #eef2ff; border: 2px solid #575fcf; box-shadow: 0 0 10px rgba(87, 95, 207, 0.2);"
+                : "background: #fff; border: 1px solid #f1f1f1; opacity: 0.8;";
+
+            const nightTitleStyle = nextPrediction === 'night'
+                ? "font-weight: bold; color: #4f46e5; font-size: 0.95rem;"
+                : "font-weight: bold; color: #888; font-size: 0.9rem;";
+
             if (night) {
                 html += `
-                <div style="background: #eef2ff; padding: 10px; border-radius: 8px; border: 1px solid #e0e7ff;">
-                    <div style="font-weight: bold; color: #4f46e5; font-size: 0.9rem;">🌙 평균 밤잠</div>
-                    <div style="font-size: 0.85rem; color: #555;">
-                        시작: ${night.avg_start} | 평균 ${night.avg_duration_hours}시간
+                <div style="${nightStyle} padding: 12px; border-radius: 12px; transition: all 0.3s;">
+                    <div style="${nightTitleStyle} display: flex; justify-content: space-between; align-items: center;">
+                        <span>🌙 평균 밤잠 ${nextPrediction === 'night' ? '<span style="font-size:0.7rem; background:#575fcf; color:white; padding:2px 6px; border-radius:10px; margin-left:5px;">NEXT</span>' : ''}</span>
+                        <span style="font-size: 0.8rem; color: #555;">약 ${night.avg_duration_hours}시간</span>
+                    </div>
+                    <div style="font-size: 1.1rem; color: #333; margin-top: 5px; font-weight: bold;">
+                        ${night.avg_start} ~ ${night.avg_end}
                     </div>
                 </div>`;
             } else {
-                html += `<div style="font-size: 0.85rem; color: #999; padding: 5px;">🌙 밤잠 데이터가 부족해요.</div>`;
-            }
-
-            // 예측 정보
-            if (prediction) {
-                html += `
-                <div style="margin-top: 5px; padding: 10px; background: #f0fdf4; border-radius: 8px; border: 1px solid #dcfce7;">
-                    <strong style="color: #16a34a; font-size: 0.9rem;">💡 다음 수면 예측</strong>
-                    <div style="font-size: 0.85rem; color: #333; margin-top: 3px;">${prediction}</div>
-                </div>`;
+                html += `<div style="${nightStyle} padding: 10px; border-radius: 12px; color: #999; font-size: 0.85rem;">🌙 밤잠 데이터가 부족해요.</div>`;
             }
 
             html += `</div>`;
@@ -1422,11 +1519,12 @@ function loadLifeData() {
             }
         });
 
-    // 2. 타임라인 데이터 로드 (기저귀 + 수면)
+    // 2. 타임라인 데이터 로드 (기저귀 + 수면 + 식단)
     Promise.all([
         fetch('/api/diaper').then(res => res.json()),
-        fetch('/api/sleep').then(res => res.json())
-    ]).then(([diaperData, sleepData]) => {
+        fetch('/api/sleep').then(res => res.json()),
+        fetch('/api/meals').then(res => res.json())
+    ]).then(([diaperData, sleepData, mealData]) => {
         let logs = [];
         if (diaperData.status === 'success') {
             logs = logs.concat(diaperData.logs.map(log => ({ ...log, category: 'diaper' })));
@@ -1438,8 +1536,22 @@ function loadLifeData() {
                 date: log.start_time, // 타임라인 정렬용
             })));
         }
+        if (mealData.status === 'success') {
+            logs = logs.concat(mealData.meals.map(log => ({
+                ...log,
+                category: 'meal',
+                date: log.date, // 이미 date 필드 있음
+            })));
+        }
 
-        // 최신순 정렬
+        // 선택된 날짜(currentLifeDate)로 필터링
+        const targetDateStr = currentLifeDate.toDateString();
+        logs = logs.filter(log => {
+            const logDate = new Date(log.date);
+            return logDate.toDateString() === targetDateStr;
+        });
+
+        // 최신순 정렬 (동일 날짜 내 시간순)
         logs.sort((a, b) => new Date(b.date) - new Date(a.date));
 
         renderTimeline(logs);
@@ -1560,6 +1672,28 @@ function renderTimeline(logs) {
                     </div>
                 </div>
                 <button class="delete-btn-mobile" onclick="deleteLifeLog('${log.id}', 'sleep')" title="삭제">🗑️</button>
+            `;
+        } else if (log.category === 'meal') {
+            const mealType = log.meal_type || '식사';
+            const menuName = log.menu_name || '기록 없음';
+
+            // 식사 종류별 아이콘
+            if (mealType.includes('아침')) icon = '🌅';
+            else if (mealType.includes('점심')) icon = '☀️';
+            else if (mealType.includes('저녁')) icon = '🌙';
+            else if (mealType.includes('간식')) icon = '🍎';
+            else icon = '🍚';
+
+            item.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 1.2rem;">${icon}</span>
+                    <div>
+                        <div style="font-weight: bold; color: #fab1a0;">${mealType}: ${menuName}</div>
+                        <div style="font-size: 0.8rem; color: #aaa;">${dateStr} ${timeStr}</div>
+                        <div style="font-size: 0.8rem; color: #55efc4;">${log.calories ? log.calories + 'kcal' : ''}</div>
+                    </div>
+                </div>
+                <button class="delete-btn-mobile" onclick="deleteLifeLog('${log.id}', 'meal')" title="삭제">🗑️</button>
             `;
         }
 
@@ -1683,7 +1817,10 @@ function submitInventory() {
 function deleteLifeLog(id, type) {
     if (!confirm('기록을 삭제하시겠습니까?')) return;
 
-    fetch(`/api/${type}/delete`, {
+    // 식단(meal) 삭제 엔드포인트는 /api/delete 임을 고려
+    const endpoint = type === 'meal' ? '/api/delete' : `/api/${type}/delete`;
+
+    fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: id })

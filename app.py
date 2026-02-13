@@ -280,6 +280,10 @@ def load_data():
         db_settings = {}
         if settings_res and settings_res.data:
             db_settings = settings_res.data[0]
+            # JSONB 내부의 접종 데이터를 최상위로 노출 (프론트엔드 호환성)
+            diaper_settings = db_settings.get('diaper_pack_sizes', {})
+            if isinstance(diaper_settings, dict) and 'completed_vaccinations' in diaper_settings:
+                db_settings['completed_vaccinations'] = diaper_settings['completed_vaccinations']
         else:
             if os.path.exists(DATA_FILE):
                 try:
@@ -645,6 +649,15 @@ def delete_meal():
     except Exception as e:
         return jsonify({"status": "error", "message": f"삭제 실패: {e}"}), 500
 
+@app.route('/api/meals', methods=['GET'])
+def get_meals():
+    try:
+        res = supabase.table('meals').select('*').order('date', desc=True).limit(100).execute()
+        return jsonify({"status": "success", "meals": res.data})
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"식단 조회 실패: {e}"}), 500
+
+
 @app.route('/api/growth', methods=['POST'])
 def record_growth():
     growth_data = request.json
@@ -793,21 +806,16 @@ def predict_growth():
         print(f"예측 에러: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
+# --- AI 분석 및 설정 API ---
+
 @app.route('/api/analyze-meal', methods=['POST'])
 def analyze_meal():
-    if not GEMINI_API_KEY:
-        return jsonify({"status": "error", "message": "Gemini API 키가 설정되지 않았습니다."}), 400
-    
     try:
         if 'image' not in request.files:
             return jsonify({"status": "error", "message": "이미지 파일이 없습니다."}), 400
-            
-        file = request.files['image']
-        if file.filename == '':
-            return jsonify({"status": "error", "message": "선택된 파일이 없습니다."}), 400
-            
-        # 이미지 읽기
-        image_data = file.read()
+        
+        image_file = request.files['image']
+        image_data = image_file.read()
         
         # Gemini 모델 설정
         model = genai.GenerativeModel('gemini-2.0-flash')
@@ -851,78 +859,7 @@ def analyze_meal():
         
     except Exception as e:
         print(f"Gemini 분석 에러: {e}")
-        error_msg = str(e)
-        if "403" in error_msg:
-            return jsonify({"status": "error", "message": "API 키 오류 (403). 올바른 키인지 확인해주세요."}), 403
-        return jsonify({"status": "error", "message": f"분석 실패: {error_msg}"}), 500
-
-@app.route('/api/settings', methods=['GET', 'POST'])
-def handle_settings():
-    if request.method == 'GET':
-        data = load_data()
-        settings = data.get('settings', {})
-        return jsonify(settings)
-    
-    # POST
-    new_settings = request.json
-    try:
-        # 기존 설정 가져오기
-        current = supabase.table('settings').select('*').limit(1).execute()
-        
-        if current.data:
-            # 업데이트
-            sid = current.data[0]['id']
-            supabase.table('settings').update(new_settings).eq('id', sid).execute()
-        else:
-            # 새로 생성
-            new_settings['id'] = str(uuid.uuid4())
-            supabase.table('settings').insert(new_settings).execute()
-            
-        # API 키가 변경되었으면 즉시 적용
-        if 'gemini_api_key' in new_settings:
-            global GEMINI_API_KEY
-            GEMINI_API_KEY = new_settings['gemini_api_key']
-            configure_gemini(GEMINI_API_KEY)
-            
-        cache_invalidate('load_data')
-        return jsonify({"status": "success", "message": "설정이 저장되었습니다."})
-    except Exception as e:
-        return jsonify({"status": "error", "message": f"설정 저장 실패: {e}"}), 500
-
-@app.route('/api/inventory/settings', methods=['POST'])
-def save_inventory_settings():
-    data = request.json
-    day_pack = data.get('diaper_day_pack')
-    night_pack = data.get('diaper_night_pack')
-    
-    try:
-        # 기존 설정 가져오기
-        current = supabase.table('settings').select('*').limit(1).execute()
-        
-        pack_settings = {}
-        if day_pack: pack_settings['diaper_day'] = int(day_pack)
-        if night_pack: pack_settings['diaper_night'] = int(night_pack)
-        
-        if current.data:
-            sid = current.data[0]['id']
-            # 기존 diaper_pack_sizes 가져와서 병합
-            existing_packs = current.data[0].get('diaper_pack_sizes', {}) or {}
-            existing_packs.update(pack_settings)
-            
-            supabase.table('settings').update({
-                "diaper_pack_sizes": existing_packs
-            }).eq('id', sid).execute()
-        else:
-            new_id = str(uuid.uuid4())
-            supabase.table('settings').insert({
-                "id": new_id,
-                "diaper_pack_sizes": pack_settings
-            }).execute()
-            
-        cache_invalidate('load_data')
-        return jsonify({"status": "success", "message": "기저귀 설정이 저장되었습니다."})
-    except Exception as e:
-        return jsonify({"status": "error", "message": f"기저귀 설정 저장 실패: {e}"}), 500
+        return jsonify({"status": "error", "message": f"분석 실패: {str(e)}"}), 500
 
     try:
         if 'image' not in request.files:
@@ -1178,25 +1115,71 @@ def get_sleep_logs():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-@app.route('/api/sleep/delete', methods=['POST'])
-def delete_sleep():
-    record_id = request.json.get('id')
+@app.route('/api/vaccinations/toggle', methods=['POST'])
+def toggle_vaccination():
+    vaccine_title = request.json.get('title')
+    if not vaccine_title:
+        return jsonify({"status": "error", "message": "제목이 없습니다."}), 400
+    
     try:
-        supabase.table('sleep_logs').delete().eq('id', record_id).execute()
-        return jsonify({"status": "success", "message": "수면 기록이 삭제되었습니다."})
+        # 현재 설정 가져오기
+        res = supabase.table('settings').select('*').limit(1).execute()
+        if not res.data:
+            # 설정이 없으면 생성
+            new_settings = {
+                "id": str(uuid.uuid4()),
+                "completed_vaccinations": [vaccine_title]
+            }
+            supabase.table('settings').insert(new_settings).execute()
+            return jsonify({"status": "success", "completed": True})
+        
+        settings = res.data[0]
+        # 별도 컬럼 대신 기존 JSONB 필드(diaper_pack_sizes)를 설정 저장소로 활용
+        diaper_settings = settings.get('diaper_pack_sizes', {})
+        if not isinstance(diaper_settings, dict):
+            diaper_settings = {}
+            
+        completed = diaper_settings.get('completed_vaccinations', [])
+        
+        if vaccine_title in completed:
+            completed.remove(vaccine_title)
+            is_completed = False
+        else:
+            completed.append(vaccine_title)
+            is_completed = True
+            
+        diaper_settings['completed_vaccinations'] = completed
+        supabase.table('settings').update({"diaper_pack_sizes": diaper_settings}).eq('id', settings['id']).execute()
+        cache_invalidate('load_data') # 캐시 갱신
+        
+        return jsonify({"status": "success", "completed": is_completed})
     except Exception as e:
+        print(f"Vaccination toggle 에러: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/sleep/analysis', methods=['GET'])
 def analyze_sleep():
     try:
-        # 최근 7일 데이터 조회
-        seven_days_ago = (datetime.utcnow() - timedelta(days=7)).isoformat() + 'Z'
+        # 최근 30일 데이터 조회 (데이터 부족 문제를 해결하기 위해 분석 기간 확장)
+        thirty_days_ago = (datetime.utcnow() - timedelta(days=30)).isoformat() + 'Z'
+        
+        # Debug: Log query params
+        with open('sleep_debug.txt', 'w', encoding='utf-8') as f:
+            f.write(f"Querying from: {thirty_days_ago}\n")
+
         res = supabase.table('sleep_logs').select('*')\
-            .gte('start_time', seven_days_ago)\
+            .gte('start_time', thirty_days_ago)\
             .order('start_time', desc=True).execute()
         
         logs = res.data
+        
+        # Debug: Log results
+        with open('sleep_debug.txt', 'a', encoding='utf-8') as f:
+            f.write(f"Logs retrieval status: {len(logs) if logs else 0} records found.\n")
+            if logs:
+                for log in logs:
+                    f.write(f"LOG: {log}\n")
+
         if not logs:
             return jsonify({"status": "success", "analysis": None})
 
@@ -1208,28 +1191,55 @@ def analyze_sleep():
             if not records: return None
             total_duration = 0
             start_hour_minutes = []
+            end_hour_minutes = []
             
             for r in records:
-                start_utc = datetime.fromisoformat(r['start_time'].replace('Z', ''))
-                end_utc = datetime.fromisoformat(r['end_time'].replace('Z', ''))
-                
-                # Duration (minutes) - UTC diff is same as KST diff
-                duration = (end_utc - start_utc).total_seconds() / 60
-                total_duration += duration
-                
-                # Start Time (KST 변환)
-                start_kst = start_utc + timedelta(hours=9)
-                start_mins = start_kst.hour * 60 + start_kst.minute
-                start_hour_minutes.append(start_mins)
+                try:
+                    # '2026-02-12T12:36:31.999+00:00' 또는 '2026-02-12 12:36:31' 등 다양한 형식 대응
+                    s_str = r['start_time'].replace('Z', '').replace(' ', 'T')
+                    e_str = r['end_time'].replace('Z', '').replace(' ', 'T')
+                    
+                    # 오프셋(+00:00 등) 제거하여 순수 시간만 추출 (UTC 기준이므로)
+                    s_str = s_str.split('+')[0].split('-')
+                    # 위 방식은 날짜의 -와 겹칠 수 있으므로 정교하게:
+                    s_base = r['start_time'].split('.')[0].replace('T', ' ').replace('Z', '')
+                    e_base = r['end_time'].split('.')[0].replace('T', ' ').replace('Z', '')
+                    
+                    start_utc = datetime.strptime(s_base[:19], '%Y-%m-%d %H:%M:%S')
+                    end_utc = datetime.strptime(e_base[:19], '%Y-%m-%d %H:%M:%S')
+                    
+                    # Duration (minutes)
+                    duration = (end_utc - start_utc).total_seconds() / 60
+                    if duration <= 0: continue 
+                    total_duration += duration
+                    
+                    # KST 변환 (UTC + 9)
+                    start_kst = start_utc + timedelta(hours=9)
+                    end_kst = end_utc + timedelta(hours=9)
+                    
+                    start_mins = start_kst.hour * 60 + start_kst.minute
+                    start_hour_minutes.append(start_mins)
+                    
+                    end_mins = end_kst.hour * 60 + end_kst.minute
+                    if end_mins < start_mins:
+                        end_mins += 1440
+                    end_hour_minutes.append(end_mins)
+                except Exception as ex:
+                    print(f"Record parsing error: {ex}")
+                    continue
             
-            avg_duration = total_duration / len(records)
-            avg_start_mins = sum(start_hour_minutes) / len(records)
+            if not start_hour_minutes: return None
             
-            avg_h = int(avg_start_mins // 60)
-            avg_m = int(avg_start_mins % 60)
+            count = len(start_hour_minutes)
+            avg_duration = total_duration / count
+            avg_start_mins = sum(start_hour_minutes) / count
+            avg_end_mins = sum(end_hour_minutes) / count
+            
+            avg_end_mins %= 1440
             
             return {
-                "avg_start": f"{avg_h:02d}:{avg_m:02d}",
+                "avg_start": f"{int(avg_start_mins // 60):02d}:{int(avg_start_mins % 60):02d}",
+                "avg_end": f"{int(avg_end_mins // 60):02d}:{int(avg_end_mins % 60):02d}",
                 "avg_duration_min": round(avg_duration),
                 "avg_duration_hours": round(avg_duration / 60, 1)
             }
@@ -1237,37 +1247,26 @@ def analyze_sleep():
         nap_stats = calculate_avg(naps)
         night_stats = calculate_avg(night_sleeps)
         
-        # 다음 수면 예측
-        now = datetime.utcnow() # UTC 기준
-        now_kr = now + timedelta(hours=9)
+        # 다음 수면 예측 (KST 기준)
+        now_kr = datetime.utcnow() + timedelta(hours=9)
         current_hour = now_kr.hour
-        
-        prediction = ""
-        
-        if 6 <= current_hour < 18:
-            # 낮 시간 -> 다음은 낮잠 
-            if nap_stats:
-                prediction = f"낮잠 예상: {nap_stats['avg_start']} (약 {nap_stats['avg_duration_hours']}시간)"
-            else:
-                prediction = "낮잠 데이터가 부족합니다."
-        else:
-            # 저녁/밤 시간 -> 다음은 밤잠
-            if night_stats:
-                prediction = f"밤잠 예상: {night_stats['avg_start']} (약 {night_stats['avg_duration_hours']}시간)"
-            else:
-                prediction = "밤잠 데이터가 부족합니다."
+        next_type = 'nap' if 6 <= current_hour < 18 else 'night'
 
         return jsonify({
             "status": "success",
             "analysis": {
                 "nap": nap_stats,
                 "night": night_stats,
-                "prediction": prediction
+                "next_prediction": next_type
+            },
+            "debug": {
+                "raw_logs": len(logs),
+                "processed_naps": len(naps),
+                "processed_nights": len(night_sleeps)
             }
         })
-
     except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+        return jsonify({"status": "error", "message": f"분석 중 오류 발생: {str(e)}"}), 500
 
 @app.route('/api/inventory', methods=['GET'])
 def get_inventory():
@@ -1356,31 +1355,35 @@ def manage_settings():
         
         # Supabase에 설정 저장 시도
         try:
-            try:
-                supabase.table('settings').upsert({
-                    "id": 1, # 단일 설정 행
+            # 단일 행 설정을 위해 ID 1번 혹은 특정 UUID 사용 (여기선 기존 방식 유지하되 정리)
+            current = supabase.table('settings').select('*').limit(1).execute()
+            
+            if current.data:
+                sid = current.data[0]['id']
+                supabase.table('settings').update({
+                    "gemini_api_key": api_key,
+                    "updated_at": datetime.utcnow().isoformat() + 'Z'
+                }).eq('id', sid).execute()
+            else:
+                supabase.table('settings').insert({
+                    "id": str(uuid.uuid4()),
                     "gemini_api_key": api_key,
                     "updated_at": datetime.utcnow().isoformat() + 'Z'
                 }).execute()
-            except Exception as db_e:
-                print(f"Supabase 설정 저장 실패 (로컬 백업 시도): {db_e}")
-                # 테이블이 없는 경우 등을 위해 로컬 파일에도 강제 저장
-                data = load_data()
-                data['settings'] = {"gemini_api_key": api_key}
-                save_data(data)
             
             # 런타임 설정 업데이트
             global GEMINI_API_KEY
             GEMINI_API_KEY = api_key
             configure_gemini(api_key)
             
+            cache_invalidate('load_data')
             return jsonify({"status": "success", "message": "설정이 저장되었습니다."})
         except Exception as e:
             return jsonify({"status": "error", "message": f"설정 저장 실패: {e}"}), 500
     else:
         # GET 요청 시 현재 설정 반환
         try:
-            settings_res = supabase.table('settings').select('*').eq('id', 1).execute()
+            settings_res = supabase.table('settings').select('*').limit(1).execute()
             db_settings = settings_res.data[0] if settings_res.data else {}
             
             # 기저귀 팩 사이즈 정보도 함께 반환
@@ -1390,41 +1393,24 @@ def manage_settings():
             
             return jsonify(db_settings)
         except Exception as e:
-            # Fallback to local data if DB fails
-            data = load_data()
-            return jsonify(data.get('settings', {}))
+            # Fallback
+            return jsonify({})
 
 @app.route('/api/inventory/settings', methods=['POST'])
 def update_inventory_settings():
     data = request.json
-    # data: { diaper_day_pack: 50, diaper_night_pack: 30 }
     try:
         # 낮 기저귀 설정
         if 'diaper_day_pack' in data:
             pack_size = int(data['diaper_day_pack'])
-            res = supabase.table('inventory').select('*').eq('item_key', 'diaper_day').execute()
-            if res.data:
-                supabase.table('inventory').update({"pack_size": pack_size}).eq('item_key', 'diaper_day').execute()
-            else:
-                supabase.table('inventory').insert({
-                    "item_key": "diaper_day",
-                    "pack_size": pack_size,
-                    "quantity": 0
-                }).execute()
+            supabase.table('inventory').update({"pack_size": pack_size}).eq('item_key', 'diaper_day').execute()
         
         # 밤 기저귀 설정
         if 'diaper_night_pack' in data:
             pack_size = int(data['diaper_night_pack'])
-            res = supabase.table('inventory').select('*').eq('item_key', 'diaper_night').execute()
-            if res.data:
-                supabase.table('inventory').update({"pack_size": pack_size}).eq('item_key', 'diaper_night').execute()
-            else:
-                supabase.table('inventory').insert({
-                    "item_key": "diaper_night",
-                    "pack_size": pack_size,
-                    "quantity": 0
-                }).execute()
-                
+            supabase.table('inventory').update({"pack_size": pack_size}).eq('item_key', 'diaper_night').execute()
+            
+        cache_invalidate('load_data')
         return jsonify({"status": "success", "message": "기저귀 팩 설정이 저장되었습니다."})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500

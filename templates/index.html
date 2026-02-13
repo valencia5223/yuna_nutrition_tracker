@@ -4,10 +4,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>차유나 영양 관리</title>
+    <title>차유나 영양 관리 🐼</title>
 
     <!-- Open Graph / KakaoTalk Metadata -->
-    <meta property="og:title" content="유나의 튼튼 식단 일기 🍎">
+    <meta property="og:title" content="유나의 튼튼 식단 일기 🐼">
     <meta property="og:description" content="유나의 성장을 기록하고 영양을 관리하는 식단 일기입니다.">
     <meta property="og:image" content="{{ url_for('static', filename='og-image.jpg', _external=True) }}">
     <meta property="og:image:width" content="800">
@@ -27,7 +27,7 @@
     <div class="bg-decoration"></div>
     <div class="container">
         <header>
-            <h1>유나의 튼튼 식단 일기 🍎</h1>
+            <h1><span class="header-logo">🐼</span> 유나의 튼튼 식단 일기</h1>
             <div id="profile-settings" class="profile-card">
                 <span class="user-info">
                     차유나 <span id="d-day-display" class="badge-dday">D+??</span>
@@ -134,7 +134,8 @@
                 </h2>
 
                 <div id="growth-content-wrapper">
-                    <!-- Health tracker moved out of growth-container for visibility test -->
+
+                    <!-- Health tracker -->
                     <div id="health-tracker" class="card"
                         style="margin: 15px; padding: 15px; background: #fff; border-radius: 15px; border: 1px solid #eee;">
                         <h3
@@ -301,11 +302,21 @@
                     </div>
                 </div>
 
-                <!-- Timeline -->
                 <div class="timeline-section" style="margin-top: 40px; margin-bottom: 30px;">
-                    <h3
-                        style="margin-bottom: 15px; font-size: 1.1rem; color: #333; border-bottom: 2px solid #eee; padding-bottom: 10px;">
-                        📅 오늘의 기록</h3>
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 2px solid #eee; padding-bottom: 10px;">
+                        <h3 style="margin-bottom: 0; font-size: 1.1rem; color: #333;">📅 기록보기</h3>
+                        <div class="date-navigator" style="display: flex; align-items: center; gap: 8px;">
+                            <button id="prevLifeDay" class="btn-icon-small"
+                                style="background: none; border: 1px solid #ddd; border-radius: 50%; width: 30px; height: 30px; cursor: pointer;">&lt;</button>
+                            <span id="currentLifeDateDisplay"
+                                style="font-weight: bold; font-size: 0.9rem; color: var(--primary-color);">오늘</span>
+                            <button id="nextLifeDay" class="btn-icon-small"
+                                style="background: none; border: 1px solid #ddd; border-radius: 50%; width: 30px; height: 30px; cursor: pointer;">&gt;</button>
+                            <button id="resetLifeDay" class="btn-small"
+                                style="padding: 4px 8px; font-size: 0.75rem; background: #eee; color: #666; display: none;">오늘</button>
+                        </div>
+                    </div>
                     <div id="life-timeline" class="timeline-container"
                         style="display: flex; flex-direction: column; gap: 12px;">
                         <!-- JS populated -->
@@ -329,7 +340,8 @@
                         style="color: #2d3436; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; font-size: 1.1rem;">
                         📦 기저귀 재고
                         <button class="btn-small" onclick="openInventoryModal()"
-                            style="background: var(--primary-color);">+ 채워넣기</button>
+                            style="background: var(--primary-color);">+
+                            채워넣기</button>
                     </h3>
                     <div class="inventory-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
                         <!-- Day Diaper -->
