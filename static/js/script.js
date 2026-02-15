@@ -1533,10 +1533,18 @@ function loadLifeData() {
         .then(res => res.json())
         .then(data => {
             if (data.status === 'success') {
-                renderTimeline(data.logs);
+                // 서버에서 넉넉하게 가져온 데이터 중, 현지 시간 기준으로 정확히 선택된 날짜인 것만 타임라인에 표시
+                const filteredLogs = data.logs.filter(log => {
+                    const lDate = new Date(log.date || log.start_time);
+                    return lDate.getFullYear() === currentLifeDate.getFullYear() &&
+                        lDate.getMonth() === currentLifeDate.getMonth() &&
+                        lDate.getDate() === currentLifeDate.getDate();
+                });
 
-                // 수면 상태 확인 (진행 중인 수면 찾기)
-                const activeSleep = data.logs.find(log => log.category === 'sleep' && log.end_time === null);
+                renderTimeline(filteredLogs);
+
+                // 수면 상태 확인: 날짜 필터링과 무관하게 '진행 중인 수면'(end_time이 없는 것)을 전체 로그에서 찾음
+                const activeSleep = data.logs.find(log => log.category === 'sleep' && !log.end_time);
                 updateSleepStatus(activeSleep);
             }
         })
@@ -1654,7 +1662,7 @@ function renderTimeline(logs) {
                     </div>
                 </div>
                 <div style="display: flex; gap: 5px;">
-                    <button class="edit-btn-mobile" onclick="editRecordTime('${log.id}', 'sleep', '${log.start_time || log.date}')" title="시간 수정">🕒</button>
+                    <button class="edit-btn-mobile" onclick="editRecordTime('${log.id}', 'sleep', '${log.start_time || log.date}', '${log.end_time || ""}')" title="시간 수정">🕒</button>
                     <button class="delete-btn-mobile" onclick="deleteLifeLog('${log.id}', 'sleep')" title="삭제" style="background: #fab1a0; color: white; border: none;">🗑️</button>
                 </div>
             `;
@@ -1932,23 +1940,40 @@ function endSleep() {
         });
 }
 
-function editRecordTime(id, category, currentIso) {
+function editRecordTime(id, category, startIso, endIso = null) {
     const modal = document.getElementById('record-edit-modal');
-    const input = document.getElementById('edit-record-datetime');
+    const startInput = document.getElementById('edit-record-datetime');
+    const endInput = document.getElementById('edit-record-datetime-end');
     const idInput = document.getElementById('edit-record-id');
     const catInput = document.getElementById('edit-record-category');
+    const endGroup = document.getElementById('end-time-group');
+    const startLabel = document.getElementById('edit-start-label');
 
-    if (!modal || !input) return;
+    if (!modal || !startInput) return;
 
-    // KST로 변환하여 브라우저 datetime-local 형식(YYYY-MM-DDTHH:mm)으로 준비
-    const date = new Date(currentIso);
-    const offset = date.getTimezoneOffset() * 60000;
-    const localIso = new Date(date.getTime() - offset).toISOString().slice(0, 16);
+    // KST로 변환 함수
+    const toLocalIso = (iso) => {
+        if (!iso) return "";
+        const date = new Date(iso);
+        const offset = date.getTimezoneOffset() * 60000;
+        return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+    };
 
     // 값 세팅
-    input.value = localIso;
+    startInput.value = toLocalIso(startIso);
     idInput.value = id;
     catInput.value = category;
+
+    // 수면 기록인 경우 종료 시간 처리
+    if (category === 'sleep' && endIso) {
+        endGroup.style.display = 'block';
+        endInput.value = toLocalIso(endIso);
+        startLabel.innerText = "잠든 시간";
+    } else {
+        endGroup.style.display = 'none';
+        endInput.value = "";
+        startLabel.innerText = "발생 시간";
+    }
 
     // 모달 열기
     modal.classList.add('active');
@@ -1963,19 +1988,31 @@ function submitEditTime() {
     const id = document.getElementById('edit-record-id').value;
     const category = document.getElementById('edit-record-category').value;
     const newTimeStr = document.getElementById('edit-record-datetime').value;
+    const newEndTimeStr = document.getElementById('edit-record-datetime-end').value;
 
     if (!newTimeStr) {
-        alert("시간을 선택해주세요.");
+        alert("시작 시간을 선택해주세요.");
         return;
     }
 
     const newDate = new Date(newTimeStr);
     if (isNaN(newDate.getTime())) {
-        alert("올바르지 않은 시간 형식입니다.");
+        alert("올바르지 않은 시작 시간 형식입니다.");
         return;
     }
 
-    const updateIso = newDate.toISOString();
+    const payload = {
+        id: id,
+        category: category,
+        new_date: newDate.toISOString()
+    };
+
+    if (category === 'sleep' && newEndTimeStr) {
+        const endDate = new Date(newEndTimeStr);
+        if (!isNaN(endDate.getTime())) {
+            payload.new_end_date = endDate.toISOString();
+        }
+    }
 
     const confirmBtn = document.querySelector('#record-edit-modal button[onclick="submitEditTime()"]');
     if (confirmBtn) {
@@ -1986,11 +2023,7 @@ function submitEditTime() {
     fetch('/api/records/update-time', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            id: id,
-            category: category,
-            new_date: updateIso
-        })
+        body: JSON.stringify(payload)
     })
         .then(res => res.json())
         .then(data => {
@@ -2016,14 +2049,14 @@ function submitEditTime() {
 /**
  * 시간을 분 단위로 조정합니다 (모바일용 퀵 버튼)
  */
-function adjustEditTime(minutes) {
-    const input = document.getElementById('edit-record-datetime');
+function adjustEditTime(target, minutes) {
+    const inputId = target === 'start' ? 'edit-record-datetime' : 'edit-record-datetime-end';
+    const input = document.getElementById(inputId);
     if (!input || !input.value) return;
 
     const currentDate = new Date(input.value);
     currentDate.setMinutes(currentDate.getMinutes() + minutes);
 
-    // 다시 datetime-local 포맷으로 변환 (YYYY-MM-DDTHH:mm)
     const y = currentDate.getFullYear();
     const mo = String(currentDate.getMonth() + 1).padStart(2, '0');
     const d = String(currentDate.getDate()).padStart(2, '0');

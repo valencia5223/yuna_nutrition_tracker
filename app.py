@@ -1423,27 +1423,35 @@ def get_timeline():
         return jsonify({"status": "error", "message": "날짜가 지정되지 않았습니다."}), 400
         
     try:
-        # 00:00:00 ~ 23:59:59 범위 설정 (UTC 기준 검색을 위해 ISO 형식 준비)
-        start_time = f"{date_str}T00:00:00Z"
-        end_time = f"{date_str}T23:59:59Z"
+        # 타임존 누락 방지를 위해 조회 범위를 전후 12시간씩 더 넓게 설정 (KST 고려)
+        query_start = (datetime.strptime(date_str, '%Y-%m-%d') - timedelta(hours=12)).isoformat() + 'Z'
+        query_end = (datetime.strptime(date_str, '%Y-%m-%d') + timedelta(hours=36)).isoformat() + 'Z'
         
         # 병렬 쿼리 실행
         def fetch_meals():
-            return supabase.table('meals').select('*').gte('date', start_time).lte('date', end_time).execute()
+            return supabase.table('meals').select('*').gte('date', query_start).lte('date', query_end).execute()
         def fetch_diapers():
-            return supabase.table('diaper_logs').select('*').gte('date', start_time).lte('date', end_time).execute()
+            return supabase.table('diaper_logs').select('*').gte('date', query_start).lte('date', query_end).execute()
         def fetch_sleeps():
-            # 수면은 시작 시간 기준으로 조회
-            return supabase.table('sleep_logs').select('*').gte('start_time', start_time).lte('start_time', end_time).execute()
+            # 특정 날짜의 수면 + 현재 진행 중인 수면(end_time IS NULL) 합집합 조회
+            # OR 조건이나 여러 쿼리를 조합할 수 있지만, 여기서는 진행중인 것을 항상 가져오기 위해 별도 쿼리 병합
+            normal_sleeps = supabase.table('sleep_logs').select('*').gte('start_time', query_start).lte('start_time', query_end).execute().data
+            active_sleeps = supabase.table('sleep_logs').select('*').is_('end_time', 'null').execute().data
+            
+            # 중복 제거 (ID 기준)
+            combined_sleeps = {s['id']: s for s in (normal_sleeps + active_sleeps)}
+            return list(combined_sleeps.values())
             
         with ThreadPoolExecutor(max_workers=3) as executor:
-            futures = {
-                'meals': executor.submit(fetch_meals),
-                'diapers': executor.submit(fetch_diapers),
-                'sleeps': executor.submit(fetch_sleeps)
-            }
+            future_meals = executor.submit(fetch_meals)
+            future_diapers = executor.submit(fetch_diapers)
+            future_sleeps = executor.submit(lambda: fetch_sleeps())
             
-            results = {k: f.result().data for k, f in futures.items()}
+            results = {
+                'meals': future_meals.result().data,
+                'diapers': future_diapers.result().data,
+                'sleeps': future_sleeps.result()
+            }
             
         # 데이터 병합 및 규격화
         combined = []
@@ -1469,6 +1477,7 @@ def update_record_time():
     category = data.get('category')
     record_id = data.get('id')
     new_date = data.get('new_date') # ISO-8601 string with 'Z'
+    new_end_date = data.get('new_end_date') # Optional: for sleep records
     
     if not all([category, record_id, new_date]):
         return jsonify({"status": "error", "message": "필수 정보가 누락되었습니다."}), 400
@@ -1484,7 +1493,13 @@ def update_record_time():
             return jsonify({"status": "error", "message": "잘못된 카테고리입니다."}), 400
             
         table_name, col_name = table_map[category]
-        supabase.table(table_name).update({col_name: new_date}).eq('id', record_id).execute()
+        update_data = {col_name: new_date}
+        
+        # 수면 기록이고 종료 시간이 제공된 경우 추가 업데이트
+        if category == 'sleep' and new_end_date:
+            update_data['end_time'] = new_end_date
+            
+        supabase.table(table_name).update(update_data).eq('id', record_id).execute()
         
         cache_invalidate('load_data')
         return jsonify({"status": "success", "message": "시간이 수정되었습니다."})

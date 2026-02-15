@@ -549,18 +549,49 @@
             </div>
 
             <div style="margin-bottom: 25px;">
-                <label style="display:block; margin-bottom:10px; font-weight:bold; color:#555; font-size: 0.95rem;">수정할
-                    시간</label>
-                <input type="datetime-local" id="edit-record-datetime"
-                    style="width: 100%; padding: 15px; border: 2px solid #f1f1f1; border-radius: 15px; font-size: 1.1rem; color: #333; outline: none; transition: border-color 0.3s; margin-bottom: 15px;">
+                <!-- Start Time Group -->
+                <div id="start-time-group">
+                    <label id="edit-start-label"
+                        style="display:block; margin-bottom:10px; font-weight:bold; color:#555; font-size: 0.95rem;">발생
+                        시간</label>
+                    <input type="datetime-local" id="edit-record-datetime"
+                        style="width: 100%; padding: 15px; border: 2px solid #f1f1f1; border-radius: 15px; font-size: 1.1rem; color: #333; outline: none; transition: border-color 0.3s; margin-bottom: 12px;">
 
-                <div class="time-adjust-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;">
-                    <button type="button" onclick="adjustEditTime(-60)" class="btn-adjust-quick">-1h</button>
-                    <button type="button" onclick="adjustEditTime(-10)" class="btn-adjust-quick">-10m</button>
-                    <button type="button" onclick="adjustEditTime(-1)" class="btn-adjust-quick">-1m</button>
-                    <button type="button" onclick="adjustEditTime(1)" class="btn-adjust-quick">+1m</button>
-                    <button type="button" onclick="adjustEditTime(10)" class="btn-adjust-quick">+10m</button>
-                    <button type="button" onclick="adjustEditTime(60)" class="btn-adjust-quick">+1h</button>
+                    <div class="time-adjust-grid"
+                        style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 20px;">
+                        <button type="button" onclick="adjustEditTime('start', -60)"
+                            class="btn-adjust-quick">-1h</button>
+                        <button type="button" onclick="adjustEditTime('start', -10)"
+                            class="btn-adjust-quick">-10m</button>
+                        <button type="button" onclick="adjustEditTime('start', -1)"
+                            class="btn-adjust-quick">-1m</button>
+                        <button type="button" onclick="adjustEditTime('start', 1)" class="btn-adjust-quick">+1m</button>
+                        <button type="button" onclick="adjustEditTime('start', 10)"
+                            class="btn-adjust-quick">+10m</button>
+                        <button type="button" onclick="adjustEditTime('start', 60)"
+                            class="btn-adjust-quick">+1h</button>
+                    </div>
+                </div>
+
+                <!-- End Time Group (Hidden by default, shown for sleep) -->
+                <div id="end-time-group"
+                    style="display: none; border-top: 1px dashed #eee; padding-top: 20px; margin-top: 20px;">
+                    <label
+                        style="display:block; margin-bottom:10px; font-weight:bold; color:#555; font-size: 0.95rem;">종료
+                        시간 (일어난 시간)</label>
+                    <input type="datetime-local" id="edit-record-datetime-end"
+                        style="width: 100%; padding: 15px; border: 2px solid #f1f1f1; border-radius: 15px; font-size: 1.1rem; color: #333; outline: none; transition: border-color 0.3s; margin-bottom: 12px;">
+
+                    <div class="time-adjust-grid"
+                        style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;">
+                        <button type="button" onclick="adjustEditTime('end', -60)" class="btn-adjust-quick">-1h</button>
+                        <button type="button" onclick="adjustEditTime('end', -10)"
+                            class="btn-adjust-quick">-10m</button>
+                        <button type="button" onclick="adjustEditTime('end', -1)" class="btn-adjust-quick">-1m</button>
+                        <button type="button" onclick="adjustEditTime('end', 1)" class="btn-adjust-quick">+1m</button>
+                        <button type="button" onclick="adjustEditTime('end', 10)" class="btn-adjust-quick">+10m</button>
+                        <button type="button" onclick="adjustEditTime('end', 60)" class="btn-adjust-quick">+1h</button>
+                    </div>
                 </div>
 
                 <input type="hidden" id="edit-record-id">
