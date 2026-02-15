@@ -1497,6 +1497,7 @@ input[type="datetime-local"] {
     background: #f8f9fa;
     cursor: pointer;
 }
+
 /* Quick Adjustment Buttons for Mobile Time Picker */
 .time-adjust-grid {
     margin-bottom: 20px;
@@ -1525,4 +1526,84 @@ input[type="datetime-local"] {
 .btn-adjust-quick:hover {
     border-color: #a29bfe;
     color: #6c5ce7;
+}
+
+/* 영상실 스타일 */
+.tab-video.hidden {
+    display: none !important;
+}
+
+.video-item {
+    background: white;
+    padding: 15px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border: 1px solid #f1f1f1;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.02);
+    transition: transform 0.2s;
+}
+
+.video-item:active {
+    transform: scale(0.98);
+    background: #f9f9f9;
+}
+
+.video-item.playing {
+    border: 2px solid #6c5ce7;
+    background: #f0f3ff;
+}
+
+.video-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    overflow: hidden;
+}
+
+.video-icon {
+    width: 40px;
+    height: 40px;
+    background: #eee;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+}
+
+.video-text {
+    overflow: hidden;
+}
+
+.video-title {
+    font-weight: bold;
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: #333;
+}
+
+.video-order-btns {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-right: 10px;
+}
+
+.btn-order {
+    background: #f1f2f6;
+    border: none;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    cursor: pointer;
+    padding: 2px 5px;
+}
+
+.btn-order:hover {
+    background: #dfe4ea;
 }

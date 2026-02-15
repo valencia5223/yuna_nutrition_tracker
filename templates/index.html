@@ -48,6 +48,7 @@
                 <button class="nav-btn active" data-tab="meal">식단기록</button>
                 <button class="nav-btn" data-tab="growth">성장일기</button>
                 <button class="nav-btn" data-tab="life">생활기록</button>
+                <button class="nav-btn" data-tab="video">영상실</button>
             </nav>
         </header>
 
@@ -405,6 +406,52 @@
                     <p>분석 중...</p>
                 </div>
                 <button id="speakBtn" class="btn-speak">🗣️ 말해줘!</button>
+            </section>
+            <!-- 영상실 섹션 -->
+            <section id="room-video" class="card tab-video hidden">
+                <h2>유나 영상실 📺</h2>
+                <div class="video-player-container"
+                    style="margin-bottom: 20px; border-radius: 15px; overflow: hidden; background: #000; aspect-ratio: 16/9;">
+                    <div id="player"></div> <!-- YouTube IFrame API -->
+                </div>
+
+                <div id="now-playing"
+                    style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 12px; border-left: 5px solid #6c5ce7; display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+                    <div style="flex: 1; overflow: hidden;">
+                        <span style="font-size: 0.8rem; color: #888; display: block; margin-bottom: 5px;">현재 재생 중</span>
+                        <strong id="current-video-title"
+                            style="font-size: 1.1rem; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;">영상을
+                            선택해주세요</strong>
+                    </div>
+                    <a id="external-video-link" href="#" target="_blank" class="btn-small"
+                        style="background: #ff0000; color: white; text-decoration: none; font-size: 0.8rem; padding: 8px 12px; border-radius: 8px; display: none; align-items: center; gap: 5px; flex-shrink: 0;">
+                        <span style="font-size: 1rem;">▶</span> 직접보기
+                    </a>
+                </div>
+
+                <div class="video-add-form"
+                    style="margin-bottom: 30px; padding: 20px; background: #fff; border-radius: 15px; border: 1px solid #eee;">
+                    <h3 style="font-size: 1rem; margin-bottom: 15px; color: #555;">➕ 새로운 영상 추가</h3>
+                    <div style="display: flex; flex-direction: column; gap: 10px;">
+                        <input type="text" id="video-title-input" placeholder="영상 제목 (예: 상어가족)" class="input-premium">
+                        <input type="text" id="video-url-input" placeholder="유튜브 링크를 붙여넣으세요" class="input-premium">
+                        <button onclick="addToPlaylist()" class="btn-premium-action" style="margin-top: 5px;">목록에
+                            추가하기</button>
+                    </div>
+                </div>
+
+                <div class="playlist-section">
+                    <h3
+                        style="font-size: 1.1rem; margin-bottom: 15px; color: #333; display: flex; align-items: center; gap: 8px;">
+                        📜 재생 목록
+                        <span id="playlist-count"
+                            style="font-size: 0.8rem; background: #6c5ce7; color: white; padding: 2px 8px; border-radius: 10px;">0</span>
+                    </h3>
+                    <div id="playlist-items" style="display: flex; flex-direction: column; gap: 10px;">
+                        <!-- JS로 렌더링 -->
+                        <p class="empty-msg">목록이 비어있어요.</p>
+                    </div>
+                </div>
             </section>
         </main>
     </div>

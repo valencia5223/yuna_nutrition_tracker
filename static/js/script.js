@@ -223,7 +223,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // 콘텐츠 표시 전환
             // 모든 탭 컨텐츠 숨기기
-            document.querySelectorAll('.tab-meal, .tab-growth, .tab-life').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.tab-meal, .tab-growth, .tab-life, .tab-video').forEach(el => el.classList.add('hidden'));
 
             // 선택된 탭 컨텐츠 보이기
             document.querySelectorAll(`.tab-${tab}`).forEach(el => el.classList.remove('hidden'));
@@ -231,6 +231,10 @@ document.addEventListener('DOMContentLoaded', function () {
             // 생활기록 탭 선택 시 데이터 로드
             if (tab === 'life') {
                 loadLifeData();
+            }
+            // 영상실 탭 선택 시 플레이리스트 로드
+            if (tab === 'video') {
+                loadPlaylist();
             }
         });
     });
@@ -2064,4 +2068,245 @@ function adjustEditTime(target, minutes) {
     const mi = String(currentDate.getMinutes()).padStart(2, '0');
 
     input.value = `${y}-${mo}-${d}T${h}:${mi}`;
+}
+
+// --- 영상실 (Video Room) 관련 변수 및 함수 ---
+let player;
+let playlist = [];
+let currentVideoIndex = -1;
+
+// YouTube IFrame API 비동기 로드
+const tag = document.createElement('script');
+tag.src = "https://www.youtube.com/iframe_api";
+const firstScriptTag = document.getElementsByTagName('script')[0];
+firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+/**
+ * YouTube Player 초기화 (API 자동 호출)
+ */
+function onYouTubeIframeAPIReady() {
+    player = new YT.Player('player', {
+        height: '100%',
+        width: '100%',
+        playerVars: {
+            'autoplay': 0,
+            'controls': 1,
+            'rel': 0,
+            'modestbranding': 1
+        },
+        events: {
+            'onStateChange': onPlayerStateChange,
+            'onError': onPlayerError
+        }
+    });
+}
+
+/**
+ * 플레이어 상태 변경 핸들러 (연속 재생)
+ */
+function onPlayerStateChange(event) {
+    // YT.PlayerState.ENDED = 0
+    if (event.data == 0) {
+        playNextVideo();
+    }
+}
+
+/**
+ * 플레이어 에러 핸들러
+ */
+function onPlayerError(event) {
+    // 101, 150: 외부 재생(Embedding)이 허용되지 않은 영상
+    if (event.data == 101 || event.data == 150) {
+        const linkBtn = document.getElementById('external-video-link');
+        if (linkBtn) {
+            linkBtn.style.display = 'flex';
+            document.getElementById('current-video-title').innerText = "⚠️ 외부 재생이 제한된 영상입니다";
+        }
+    }
+}
+
+/**
+ * 플레이리스트 로드
+ */
+function loadPlaylist() {
+    fetch('/api/playlist')
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                playlist = data.playlist;
+                renderPlaylist();
+
+                // 최초 접근 시 (현재 선택된 영상이 없고 목록이 비어있지 않을 때) 첫 번째 영상 준비
+                if (currentVideoIndex === -1 && playlist.length > 0) {
+                    playVideo(0, false); // false를 인자로 전달하여 자동 재생 방지 (로드만 수행)
+                }
+            }
+        });
+}
+
+/**
+ * 플레이리스트 렌더링
+ */
+function renderPlaylist() {
+    const container = document.getElementById('playlist-items');
+    const countBadge = document.getElementById('playlist-count');
+    if (!container) return;
+
+    container.innerHTML = '';
+    countBadge.innerText = playlist.length;
+
+    if (playlist.length === 0) {
+        container.innerHTML = '<p class="empty-msg">목록이 비어있어요. 영상을 추가해보세요!</p>';
+        return;
+    }
+
+    playlist.forEach((item, index) => {
+        const div = document.createElement('div');
+        div.className = `video-item ${index === currentVideoIndex ? 'playing' : ''}`;
+        div.innerHTML = `
+            <div class="video-info" onclick="playVideo(${index})">
+                <div class="video-icon">📺</div>
+                <div class="video-text">
+                    <span class="video-title">${item.title}</span>
+                </div>
+            </div>
+            <div style="display: flex; align-items: center;">
+                <div class="video-order-btns">
+                    <button class="btn-order" onclick="movePlaylistItem(${index}, -1)">▲</button>
+                    <button class="btn-order" onclick="movePlaylistItem(${index}, 1)">▼</button>
+                </div>
+                <button class="delete-btn-mobile" onclick="deleteFromPlaylist('${item.id}')" style="width: 36px; height: 36px; font-size: 1rem;">🗑️</button>
+            </div>
+        `;
+        container.appendChild(div);
+    });
+}
+
+/**
+ * 영상 추가
+ */
+function addToPlaylist() {
+    const titleInput = document.getElementById('video-title-input');
+    const urlInput = document.getElementById('video-url-input');
+    const title = titleInput.value.trim();
+    const url = urlInput.value.trim();
+
+    if (!url) {
+        alert("유튜브 URL을 입력해주세요.");
+        return;
+    }
+
+    fetch('/api/playlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: title || '제목 없음', url: url })
+    })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                titleInput.value = '';
+                urlInput.value = '';
+                loadPlaylist();
+            } else {
+                alert(data.message);
+            }
+        });
+}
+
+/**
+ * 영상 삭제
+ */
+function deleteFromPlaylist(id) {
+    if (!confirm('영상을 삭제하시겠습니까?')) return;
+
+    fetch(`/api/playlist/${id}`, { method: 'DELETE' })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                loadPlaylist();
+            }
+        });
+}
+
+/**
+ * 영상 재생
+ */
+function playVideo(index, autoplay = true) {
+    if (index < 0 || index >= playlist.length) return;
+
+    currentVideoIndex = index;
+    const item = playlist[index];
+
+    // UI 업데이트
+    const titleEl = document.getElementById('current-video-title');
+    if (titleEl) titleEl.innerText = item.title;
+
+    const linkBtn = document.getElementById('external-video-link');
+    if (linkBtn) {
+        linkBtn.href = item.url;
+        linkBtn.style.display = 'flex'; // 기본적으로 보여줌 (또는 에러 시에만 보여주려면 none)
+    }
+
+    renderPlaylist();
+
+    // YouTube 플레이어 로드
+    if (player && typeof player.loadVideoById === 'function') {
+        if (autoplay) {
+            player.loadVideoById(item.video_id);
+        } else {
+            player.cueVideoById(item.video_id);
+        }
+    } else {
+        // 플레이어가 아직 준비되지 않았다면 약간의 지연 후 재시도
+        setTimeout(() => playVideo(index, autoplay), 500);
+    }
+}
+
+/**
+ * 다음 영상 재생
+ */
+function playNextVideo() {
+    if (currentVideoIndex + 1 < playlist.length) {
+        playVideo(currentVideoIndex + 1);
+    } else {
+        // 처음으로 돌아가거나 멈춤 (여기서는 처음으로 돌아가기)
+        if (playlist.length > 0) {
+            playVideo(0);
+        }
+    }
+}
+
+/**
+ * 순서 변경
+ */
+function movePlaylistItem(index, direction) {
+    const newIndex = index + direction;
+    if (newIndex < 0 || newIndex >= playlist.length) return;
+
+    // 배열 순서 교체
+    const temp = playlist[index];
+    playlist[index] = playlist[newIndex];
+    playlist[newIndex] = temp;
+
+    // 새로운 순서 데이터 준비
+    const orders = playlist.map((item, idx) => ({
+        id: item.id,
+        sort_order: idx
+    }));
+
+    fetch('/api/playlist/reorder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orders: orders })
+    })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                // 현재 재생 중인 인덱스 보정
+                if (currentVideoIndex === index) currentVideoIndex = newIndex;
+                else if (currentVideoIndex === newIndex) currentVideoIndex = index;
+
+                renderPlaylist();
+            }
+        });
 }

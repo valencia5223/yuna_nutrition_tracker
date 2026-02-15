@@ -1507,6 +1507,98 @@ def update_record_time():
         print(f"시간 수정 에러: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
+@app.route('/api/playlist', methods=['GET'])
+def get_playlist():
+    """저장된 유튜브 플레이리스트를 가져옵니다 (정렬 순서 기준)."""
+    try:
+        res = supabase.table('youtube_playlist').select('*').order('sort_order').execute()
+        playlist = res.data
+        
+        # 보정 로직: video_id가 없거나 쇼츠 링크인 경우 등을 위해 런타임에 재확인
+        updated = False
+        import re
+        youtube_regex = r'(https?://)?(www\.)?(youtube|youtu|youtube-nocookie)\.(com|be)/(watch\?v=|embed/|v/|shorts/|)([^?&"\'<> #]+)'
+        
+        for item in playlist:
+            if not item.get('video_id') or 'shorts' in item['url'] or len(item.get('video_id', '')) != 11:
+                url = item['url']
+                match = re.search(youtube_regex, url)
+                v_id = match.group(6) if match else ""
+                
+                if v_id and v_id != item.get('video_id'):
+                    item['video_id'] = v_id
+                    # DB에도 업데이트
+                    supabase.table('youtube_playlist').update({"video_id": v_id}).eq('id', item['id']).execute()
+                    
+        return jsonify({"status": "success", "playlist": playlist})
+    except Exception as e:
+        print(f"Playlist 조회 에러: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/playlist', methods=['POST'])
+def add_to_playlist():
+    """새로운 유튜브 영상을 플레이리스트에 추가합니다."""
+    data = request.json
+    url = data.get('url')
+    title = data.get('title', '제목 없음')
+    
+    if not url:
+        return jsonify({"status": "error", "message": "URL이 필요합니다."}), 400
+        
+    try:
+        # 정규표현식을 이용한 더 강력한 비디오 ID 추출
+        import re
+        youtube_regex = (
+            r'(https?://)?(www\.)?'
+            '(youtube|youtu|youtube-nocookie)\.(com|be)/'
+            '(watch\?v=|embed/|v/|shorts/|)([^?&"\'<> #]+)'
+        )
+        match = re.search(youtube_regex, url)
+        video_id = match.group(6) if match else ""
+            
+        if not video_id or len(video_id) < 11:
+            return jsonify({"status": "error", "message": "올바른 유튜브 URL을 찾을 수 없습니다."}), 400
+            
+        # 가장 큰 sort_order 찾기
+        res = supabase.table('youtube_playlist').select('sort_order').order('sort_order', desc=True).limit(1).execute()
+        next_order = (res.data[0]['sort_order'] + 1) if res.data else 0
+        
+        new_item = {
+            "id": str(uuid.uuid4()),
+            "title": title,
+            "url": url,
+            "video_id": video_id,
+            "sort_order": next_order
+        }
+        
+        supabase.table('youtube_playlist').insert(new_item).execute()
+        return jsonify({"status": "success", "item": new_item})
+    except Exception as e:
+        print(f"Playlist 추가 에러: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/playlist/<item_id>', methods=['DELETE'])
+def delete_from_playlist(item_id):
+    """플레이리스트에서 특정 영상을 삭제합니다."""
+    try:
+        supabase.table('youtube_playlist').delete().eq('id', item_id).execute()
+        return jsonify({"status": "success"})
+    except Exception as e:
+        print(f"Playlist 삭제 에러: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/playlist/reorder', methods=['POST'])
+def reorder_playlist():
+    """플레이리스트의 재생 순서를 변경합니다."""
+    orders = request.json.get('orders', []) # [{"id": "...", "sort_order": 0}, ...]
+    try:
+        for item in orders:
+            supabase.table('youtube_playlist').update({"sort_order": item['sort_order']}).eq('id', item['id']).execute()
+        return jsonify({"status": "success"})
+    except Exception as e:
+        print(f"Playlist 순서 변경 에러: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 @app.route('/api/recommend', methods=['GET'])
 def recommend_meal():
     data = load_data()
